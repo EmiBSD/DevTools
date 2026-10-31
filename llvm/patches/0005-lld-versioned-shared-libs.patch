@@ -1,0 +1,74 @@
+lld: resolve -l<name> to lib<name>.so.<major>.<minor>
+
+Why a patch: the system's shared libraries carry only their versioned name,
+lib<name>.so.<major>.<minor>, the name its run-time link-editor looks up
+(lib%s.so.%d.%d), and no lib<name>.so link; upstream lld looks for
+lib<name>.so and then lib<name>.a, so -lc would take the static libc. This
+makes lld, when lib<name>.so is absent in a search path, take the
+lib<name>.so.<major>.<minor> of the highest version there, before falling
+back to lib<name>.a; the library's SONAME is what the executable records.
+The knowledge lives in the linker, not in a symbolic link per library,
+because the same lld links the userland from another host and is the
+system's own linker once installed. Where lib<name>.so exists nothing
+changes. Written by EmiBSD (ISC); carried by DevTools over the pinned tag,
+offered upstream when stable. Author: Emilio Navarrete Lineros, 2026-10-31.
+
+--- a/lld/ELF/DriverUtils.cpp
++++ b/lld/ELF/DriverUtils.cpp
+@@ -236,15 +236,53 @@
+   return std::nullopt;
+ }
+ 
+-// This is for -l<basename>. We'll look for lib<basename>.so or lib<basename>.a from
+-// search paths.
++// lib<name>.so.<major>.<minor> of the highest version in a directory, for a
++// system whose shared libraries carry only their versioned name (the name its
++// run-time link-editor looks up) and no lib<name>.so link: the linker resolves
++// -l<name> to it, and the library's SONAME is what the executable records.
++static std::optional<std::string>
++findVersionedSharedLibrary(Ctx &ctx, StringRef dir, StringRef name) {
++  SmallString<128> d;
++  if (dir.starts_with("="))
++    path::append(d, ctx.arg.sysroot, dir.substr(1));
++  else
++    d = dir;
++  std::string prefix = ("lib" + name + ".so.").str();
++  std::optional<std::string> best;
++  unsigned bestMajor = 0, bestMinor = 0;
++  std::error_code ec;
++  for (fs::directory_iterator it(d, ec), end; !ec && it != end;
++       it.increment(ec)) {
++    StringRef file = path::filename(it->path());
++    if (!file.starts_with(prefix))
++      continue;
++    auto [majorStr, minorStr] = file.substr(prefix.size()).split('.');
++    unsigned major, minor;
++    if (majorStr.getAsInteger(10, major) || minorStr.getAsInteger(10, minor))
++      continue;
++    if (!best || major > bestMajor ||
++        (major == bestMajor && minor > bestMinor)) {
++      best = it->path();
++      bestMajor = major;
++      bestMinor = minor;
++    }
++  }
++  return best;
++}
++
++// This is for -l<basename>. We'll look for lib<basename>.so,
++// lib<basename>.so.<major>.<minor> or lib<basename>.a from search paths.
+ std::optional<std::string> elf::searchLibraryBaseName(Ctx &ctx,
+                                                       StringRef name) {
+   for (StringRef dir : ctx.arg.searchPaths) {
+-    if (!ctx.arg.isStatic)
++    if (!ctx.arg.isStatic) {
+       if (std::optional<std::string> s =
+               findFile(ctx, dir, "lib" + name + ".so"))
+         return s;
++      if (std::optional<std::string> s =
++              findVersionedSharedLibrary(ctx, dir, name))
++        return s;
++    }
+     if (std::optional<std::string> s = findFile(ctx, dir, "lib" + name + ".a"))
+       return s;
+   }

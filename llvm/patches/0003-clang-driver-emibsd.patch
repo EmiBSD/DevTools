@@ -5,8 +5,10 @@ ToolChains/EmiBSD.{h,cpp} (new, ISC) are the toolchain: PIE by default, rcrt0.o
 for a static PIE, gcrt0.o for -pg, crtbegin/crtend from the sysroot's /usr/lib,
 the entry __start, --eh-frame-hdr, /usr/libexec/ld.so, lld, compiler-rt's
 builtins before and after -lc, libc++ with libc++abi and libunwind, the strong
-stack protector, asynchronous unwind tables, /usr/include and /usr/include/c++/v1
-of the sysroot and nothing else. The tables of the shared driver code learn the
+stack protector, asynchronous unwind tables, /usr/include of the sysroot and nothing
+else for C; for C++, libc++'s headers where clang's generic search finds them (the
+toolchain's include/<triple>/c++/v1 and include/c++/v1, else the sysroot's
+/usr/include/c++/v1). The tables of the shared driver code learn the
 OS: toolchain selection, the OS library name `emibsd`, no GCC include tree, PIE
 level 1 (-fpie), no -lrt and no -ldl (the libc has both), -p allowed, and the
 hardening defaults the system's libraries are built with: on AArch64 branch
@@ -139,7 +141,7 @@ Navarrete Lineros, 2026-10-31.
    case llvm::Triple::Fuchsia:
 --- a/clang/lib/Driver/ToolChains/EmiBSD.h
 +++ b/clang/lib/Driver/ToolChains/EmiBSD.h
-@@ -0,0 +1,119 @@
+@@ -0,0 +1,117 @@
 +//===--- EmiBSD.h - EmiBSD ToolChain Implementations ------------*- C++ -*-===//
 +//
 +// Copyright (c) 2026 Emilio Navarrete Lineros <enavarre@outlook.com>
@@ -230,8 +232,6 @@ Navarrete Lineros, 2026-10-31.
 +  void
 +  AddClangSystemIncludeArgs(const llvm::opt::ArgList &DriverArgs,
 +                            llvm::opt::ArgStringList &CC1Args) const override;
-+  void addLibCxxIncludePaths(const llvm::opt::ArgList &DriverArgs,
-+                             llvm::opt::ArgStringList &CC1Args) const override;
 +  void AddCXXStdlibLibArgs(const llvm::opt::ArgList &Args,
 +                           llvm::opt::ArgStringList &CmdArgs) const override;
 +
@@ -261,7 +261,7 @@ Navarrete Lineros, 2026-10-31.
 +#endif // LLVM_CLANG_LIB_DRIVER_TOOLCHAINS_EMIBSD_H
 --- a/clang/lib/Driver/ToolChains/EmiBSD.cpp
 +++ b/clang/lib/Driver/ToolChains/EmiBSD.cpp
-@@ -0,0 +1,212 @@
+@@ -0,0 +1,206 @@
 +//===--- EmiBSD.cpp - EmiBSD ToolChain Implementations ----------*- C++ -*-===//
 +//
 +// Copyright (c) 2026 Emilio Navarrete Lineros <enavarre@outlook.com>
@@ -284,12 +284,13 @@ Navarrete Lineros, 2026-10-31.
 +//===----------------------------------------------------------------------===//
 +
 +#include "EmiBSD.h"
-+#include "CommonArgs.h"
++#include "clang/Driver/CommonArgs.h"
 +#include "clang/Driver/Compilation.h"
 +#include "clang/Driver/Driver.h"
-+#include "clang/Driver/Options.h"
 +#include "clang/Driver/SanitizerArgs.h"
++#include "clang/Options/Options.h"
 +#include "llvm/Option/ArgList.h"
++#include "llvm/Support/Path.h"
 +
 +using namespace clang::driver;
 +using namespace clang::driver::tools;
@@ -307,7 +308,6 @@ Navarrete Lineros, 2026-10-31.
 +  const bool Static = Args.hasArg(options::OPT_static);
 +  const bool Shared = Args.hasArg(options::OPT_shared);
 +  const bool Profiling = Args.hasArg(options::OPT_pg);
-+  const bool Pie = Args.hasArg(options::OPT_pie);
 +  const bool Nopie = Args.hasArg(options::OPT_no_pie, options::OPT_nopie);
 +  const bool Relocatable = Args.hasArg(options::OPT_r);
 +  ArgStringList CmdArgs;
@@ -342,10 +342,10 @@ Navarrete Lineros, 2026-10-31.
 +    }
 +  }
 +
-+  if (Pie)
++  // PIE by default, what the system's ld.so and rcrt0.o expect; upstream lld
++  // itself defaults to a fixed address. -no-pie, -pg, -shared and -r turn it off.
++  if (!Nopie && !Profiling && !Shared && !Relocatable)
 +    CmdArgs.push_back("-pie");
-+  if (Nopie || Profiling)
-+    CmdArgs.push_back("-nopie");
 +
 +  assert((Output.isFilename() || Output.isNothing()) && "Invalid output.");
 +  if (Output.isFilename()) {
@@ -455,12 +455,6 @@ Navarrete Lineros, 2026-10-31.
 +  // The system's headers: /usr/include of the sysroot, and nothing else.
 +  addExternCSystemInclude(DriverArgs, CC1Args,
 +                          concat(D.SysRoot, "/usr/include"));
-+}
-+
-+void EmiBSD::addLibCxxIncludePaths(const llvm::opt::ArgList &DriverArgs,
-+                                   llvm::opt::ArgStringList &CC1Args) const {
-+  addSystemInclude(DriverArgs, CC1Args,
-+                   concat(getDriver().SysRoot, "/usr/include/c++/v1"));
 +}
 +
 +void EmiBSD::AddCXXStdlibLibArgs(const ArgList &Args,
