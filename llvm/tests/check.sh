@@ -28,6 +28,14 @@ for p in bin/clang bin/clang++ bin/ld.lld bin/llvm-ar bin/llvm-ranlib bin/llvm-n
 done
 [ "$fail" = 0 ] || exit 1
 
+# The host tools carry nothing of Homebrew: the artifact runs on a Mac that has none.
+case $(uname) in Darwin)
+    for b in "$prefix"/bin/*; do
+        [ -L "$b" ] && continue
+        otool -L "$b" 2>/dev/null | grep -q /opt/homebrew && bad "$(basename "$b") loads a Homebrew library: $(otool -L "$b" | grep /opt/homebrew | head -1)"
+    done ;;
+esac
+
 # The compiler says who it is and for whom it emits by default.
 "$cc" --version | head -1 | grep -q "clang version $version" || bad "clang --version does not say $version"
 [ "$("$cc" -print-target-triple)" = "$triple" ] || bad "default target is $("$cc" -print-target-triple), not $triple"

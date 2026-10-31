@@ -39,6 +39,7 @@ Flags that differ from upstream's defaults, with the reason:
 
 | Flag | Value | Why |
 |---|---|---|
+| `LLVM_ENABLE_ZSTD` | `OFF` | CMake found Homebrew's zstd and the tools loaded `/opt/homebrew/opt/zstd/lib/libzstd.1.dylib`, which no other Mac has, and rustc's link asked for `-lzstd` with no path; the host tools link only the SDK's libraries (zlib, libxml2, libedit); `tests/check.sh` refuses anything under `/opt/homebrew` |
 | `LLVM_DEFAULT_TARGET_TRIPLE` | `aarch64-emibsd-emibsd8.0` | the system's clang emits for the system by default (D-0004); the OS version is the EmiBSD release the ABI belongs to, `EMIBSD_OS_VERSION` in `build.sh`, bumped by the maintainer; the per-target runtime directories carry it |
 | `CMAKE_SYSTEM_NAME` (stage 2) | `EmiBSD`, with `build/cmake/Platform/EmiBSD.cmake` | CMake must name the system the runtimes are cross-compiled for; it knows no EmiBSD, so DevTools describes it (an ELF Unix without libdl) |
 | `LLVM_ENABLE_PER_TARGET_RUNTIME_DIR` (stage 2) | `ON` | the runtimes land in `lib/<triple>/`, where clang's driver looks for a cross target |
