@@ -7,7 +7,7 @@
 | `llvm/` | `llvmorg-22.1.8` | the fork `EmiBSD/llvm-project` at upstream's tag, as upstream ships it | clang, lld, the tools; compiler-rt, libunwind, libc++abi, libc++ for `aarch64-emibsd-emibsd8.0` (our patch series, D-0004) |
 
 It compiles the C and C++ of the system and it is the backend rustc builds against
-(rustc 1.98.1 needs LLVM 21 or newer). Nothing of OpenBSD enters DevTools: no LLVM code, no
+(rustc 1.99.1 needs LLVM 21 or newer). Nothing of OpenBSD enters DevTools: no LLVM code, no
 patches, no build glue. rustc's own `src/llvm-project` submodule is not fetched.
 
 ## Where it sits
@@ -26,7 +26,7 @@ flowchart LR
     os["the release repository"]
 
     llvm -- "llvmorg-22.1.8" --> dev
-    rust -- "1.98.1" --> dev
+    rust -- "1.99.1" --> dev
     cargo -- "submodule src/tools/cargo" --> dev
     dev -- "clang, lld, libc++; rustc for its written programs" --> ul
     dev -- "clang, lld; rustc with core and alloc for the kernel's target" --> k
@@ -49,7 +49,7 @@ them is in this table.
 
 | Host | Target (LLVM's triple; Rust's name is `aarch64-emibsd-emibsd`, `llvm-target` the triple) | When | Stage0 for `rust/` |
 |---|---|---|---|
-| `aarch64-apple-darwin` | `aarch64-emibsd-emibsd8.0` | T1, T2: the development machine | rustup's 1.98.1 (`rust-toolchain.toml`) |
+| `aarch64-apple-darwin` | `aarch64-emibsd-emibsd8.0` | T1, T2: the development machine | rustup's 1.99.1 (`rust-toolchain.toml`) |
 | `x86_64-unknown-linux-gnu` | `aarch64-emibsd-emibsd8.0` | only if a consumer's CI needs it (open decision) | rustup's |
 | `aarch64-emibsd-emibsd8.0` | itself | T4, after the kernel's milestone N9 (no inherited tree left) | the previous DevTools release |
 
@@ -95,5 +95,5 @@ Installing any of them is the user's.
 ## Versions
 
 `<upstream version>+emibsd.<N>`: the upstream's version and our patch level, as
-`UPSTREAM.toml` carries it (`22.1.8+emibsd.1`, `1.98.1+emibsd.3`). A pin bump is its own
+`UPSTREAM.toml` carries it (`22.1.8+emibsd.1`, `1.99.1+emibsd.1`). A pin bump is its own
 commit; `N` resets to 1 on a bump and rises with each change of ours at the same pin.

@@ -2,7 +2,7 @@
 
 ## How it is built
 
-The source at the pin (`UPSTREAM.toml`: rust-lang/rust 1.98.1 from the fork, with the
+The source at the pin (`UPSTREAM.toml`: rust-lang/rust 1.99.1 from the fork, with the
 `cargo` and `backtrace` submodules it fixes, and the crates.io dependencies `just fetch`
 vendored from its `Cargo.lock` files into `upstream/rust-vendor/`), copied to
 `target/rust/src`, `patches/` applied, built by `build/build.sh` with Rust's own `x.py`,
@@ -32,7 +32,7 @@ The plan of T2 (the maintainer, 2026-10-31, D-0006), in three slices:
 
 | Key | Value | Why |
 |---|---|---|
-| `build.rustc`, `build.cargo` | the host's pinned 1.98.1 (`rustup which`) | stage0 without the download of `src/stage0`'s beta; real paths, because the rustup proxies pick a toolchain by the directory x.py runs cargo in |
+| `build.rustc`, `build.cargo` | the host's pinned 1.99.1 (`rustup which`) | stage0 without the download of `src/stage0`'s beta; real paths, because the rustup proxies pick a toolchain by the directory x.py runs cargo in |
 | `build.local-rebuild` | `true` | stage0 is the same version as the source, not the previous beta |
 | `build.submodules` | `false` | the submodules come from the mirrors at the pins; x.py never runs git against upstream URLs |
 | `build.vendor`, `build.locked-deps` | `true` | cargo reads `.cargo/config.toml` of the copy (and `library/.cargo/config.toml`, the tarball's layout), which point at `vendor/` inside the copy: the crates `just fetch` vendored into `upstream/rust-vendor/`, copied in writable, because build scripts copy files with `fs::copy` keeping upstream's read-only mode and then cannot overwrite their own copy (`libnghttp2-sys`), and because the `rust-src` step prunes the vendor directory it is pointed at; `--frozen`: nothing resolves anew |

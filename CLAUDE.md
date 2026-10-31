@@ -37,7 +37,7 @@ answered in Spanish.
   from the main session.
 - **One LLVM (D-0003, 2026-10-31).** Upstream LLVM at `llvmorg-22.1.8`, from the fork, as
   upstream ships it, built with its own CMake: the compiler of the C and C++ of the system and
-  the backend rustc builds against (`llvm-config`; rustc 1.98.1 needs 21 or newer). No patch
+  the backend rustc builds against (`llvm-config`; rustc 1.99.1 needs 21 or newer). No patch
   of anyone else's, no build glue of anyone else's; rustc's own LLVM submodule is not fetched.
 - **Stable Rust, no nightly.** The `std` for `aarch64-emibsd-emibsd` (tier 3; `llvm-target` `aarch64-emibsd-emibsd8.0`) is built with
   `x.py` from the stable release's source as part of the toolchain. Stage0 is rustup's rustc

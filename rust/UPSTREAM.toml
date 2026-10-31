@@ -6,9 +6,9 @@ repo    = "https://github.com/EmiBSD/rust"           # the organisation's mirror
 origin  = "https://github.com/rust-lang/rust"          # what the mirror is fed from
 path    = ["/*", "!/compiler/rustc_codegen_gcc/"]   # the whole tree but the GCC backend: its gccjit crates are GPL-3.0 (POLICIES.md: never in the tree);
                                           # excluded from the root workspace upstream, built only when rust.codegen-backends names gcc
-commit  = "48a229ceaefd4985c50990b14116b6d856af0985"   # the commit tag 1.98.1 points to (18ed059b is the annotated tag object)
-tag     = "1.98.1"                 # resolved to a commit at fetch, recorded in upstream/.pin
-version = "1.98.1+emibsd.2"        # the upstream's version, plus our patch level (.1: the bootstrap patch; .2: the target, 0002 to 0004)
+commit  = "58cf8f9c35b355199727627d07ae34a4e2846d67"   # the commit tag 1.99.1 points to (213cfbe6 is the annotated tag object)
+tag     = "1.99.1"                 # resolved to a commit at fetch, recorded in upstream/.pin
+version = "1.99.1+emibsd.1"        # the upstream's version, plus our patch level (resets to 1 on a bump; the series is 0001 to 0004)
 license = ["Apache-2.0", "MIT"]   # the families; the texts stay in the source
 
 [security]
@@ -26,19 +26,19 @@ series  = ["0001-bootstrap-vendor-what-is-there.patch", "0002-rustc-target-emibs
 path    = "src/tools/cargo"
 repo    = "https://github.com/EmiBSD/cargo"
 origin  = "https://github.com/rust-lang/cargo"
-commit  = "797e8a9bca276c1c9f9f738d2a20f484fa4eea9d"   # what 1.98.1 pins; rustup's cargo 1.98.1 prints it
+commit  = "5f94df4789f005f9a352888e8355ffc645b7ed0e"   # what 1.99.1 pins (src/tools/cargo at the tag); rustup's cargo 1.99.1 prints it
 
 [[submodules]]                            # library/backtrace: std needs it (bootstrap requires the submodule)
 path    = "library/backtrace"
 repo    = "https://github.com/EmiBSD/rust-lang-backtrace-rs"
 origin  = "https://github.com/rust-lang/backtrace-rs"
-commit  = "d902726a1dcdc1e1c66f73d1162181b5423c645b"   # what 1.98.1 pins; no tag of backtrace-rs points at it
+commit  = "d902726a1dcdc1e1c66f73d1162181b5423c645b"   # what 1.99.1 pins, as 1.98.1 did; no tag of backtrace-rs points at it
 
 [[submodules]]                            # not a git submodule of rust: the libc crate std links, taken from its mirror
 path    = ".emibsd/libc"                  # in place of crates.io's copy (build.sh puts it, patched, in the vendored package's stead),
 repo    = "https://github.com/EmiBSD/rust-lang-libc" # so that EmiBSD's bindings are a patch series of ours over the pinned tag (D-0004)
 origin  = "https://github.com/rust-lang/libc"
-commit  = "71d5bfcc1bda05da1783666fc2cd7d9669c9c4c8"   # tag 0.2.185: the version library/Cargo.lock of 1.98.1 fixes for std
+commit  = "ef0906e20828777175f65caa7e681a0ce33c559a"   # tag 0.2.189: the version library/Cargo.lock of 1.99.1 fixes for std
 
 [vendor]                                  # the crates.io dependencies, vendored once by `just fetch` (cargo vendor --locked;
 dir       = "rust-vendor"                 # the versions and checksums of the pin's Cargo.lock files), into upstream/<dir>/:
@@ -51,7 +51,7 @@ manifests = ["library/Cargo.toml", "library/stdarch/Cargo.toml", "src/tools/carg
 
 # One LLVM (decision D-0003, 2026-10-31): rustc is built against llvm/'s LLVM through
 # `llvm-config` (`[target.*] llvm-config` in x.py's config.toml, `llvm.download-ci-llvm = false`),
-# as distributions build it against a system LLVM; rustc 1.98.1 requires LLVM >= 21
+# as distributions build it against a system LLVM; rustc 1.99.1 requires LLVM >= 21
 # (src/bootstrap/src/core/build_steps/llvm.rs, check_llvm_version). Its own src/llvm-project
 # submodule is not pinned and not fetched. Built with x.py, host first, then the target
 # aarch64-emibsd-emibsd (D-0004; llvm-target aarch64-emibsd-emibsd8.0, its target spec a patch of ours in patches/): the std for
