@@ -14,13 +14,17 @@
 # ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 # OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 #
-# rust/tests/check.sh PREFIX HOST KERNEL_TARGET: what a build of this toolchain must be able
-# to do on the host, run by build/build.sh after every build; `just build rust` is not done
-# until it passes. The system's target (slice 2 of T2) joins when its std exists.
+# rust/tests/check.sh PREFIX HOST KERNEL_TARGET [TARGET LLVM_PREFIX]: what a build of this
+# toolchain must be able to do on the host, run by build/build.sh after every build; `just
+# build rust` is not done until it passes. With TARGET (the system's) and llvm/'s install, a
+# Rust hello is linked for it by that clang against EMIBSD_SYSROOT, static and dynamic, and
+# read as the ELF the kernel loads; that it runs is the kernel repository's smoke, T2's proof.
 set -eu
 prefix=${1:?prefix}
 host=${2:?host}
 kernel=${3:?kernel target}
+target=${4:-}
+llvm=${5:-}
 here=$(cd "$(dirname "$0")/.." && pwd)
 version=$(sed -n 's/^version *= *"\([^+"]*\).*/\1/p' "$here/UPSTREAM.toml")
 llvm_version=$(sed -n 's/^version *= *"\([^+"]*\).*/\1/p' "$here/../llvm/UPSTREAM.toml")
@@ -78,5 +82,43 @@ RS
 "$rustc" --target "$kernel" --crate-type rlib -O -o "$tmp/libnostd.rlib" "$tmp/nostd.rs" 2> "$tmp/nostd.err" \
     || bad "the no_std crate for $kernel did not compile: $(head -5 "$tmp/nostd.err")"
 
-[ "$fail" = 0 ] && echo "check.sh: $prefix: ok (rustc $version for $host, core/alloc for $kernel, LLVM $llvm_version)"
+# The system's target: std where rustc looks for it, and a hello linked by llvm/'s clang
+# against the sysroot: static PIE and dynamic, the ELF the kernel loads.
+if [ -n "$target" ]; then
+    : "${EMIBSD_SYSROOT:?EMIBSD_SYSROOT}"
+    cc="$llvm/bin/clang"; readelf="$llvm/bin/llvm-readelf"
+    [ -x "$cc" ] || bad "no clang at $llvm/bin (just build llvm first)"
+    ls "$prefix/lib/rustlib/$target/lib/"libstd-*.rlib >/dev/null 2>&1 || bad "no std for $target"
+    "$rustc" --target "$target" --print cfg 2>/dev/null | grep -q '^target_os="emibsd"$' || bad "$target does not say target_os = emibsd"
+    cat > "$tmp/e.rs" <<'RS'
+use std::io::Write;
+fn main() {
+    let v: Vec<String> = std::env::args().collect();
+    let mut out = std::io::stdout().lock();
+    writeln!(out, "hello from {} ({} args)", std::env::consts::OS, v.len()).unwrap();
+    let r = std::panic::catch_unwind(|| { if v.len() > 100 { panic!("x") } });
+    std::process::exit(if r.is_ok() { 0 } else { 1 });
+}
+RS
+    link="-C linker=$cc -C link-arg=--sysroot=$EMIBSD_SYSROOT"
+    if "$rustc" --target "$target" $link -C target-feature=+crt-static -O -o "$tmp/es" "$tmp/e.rs" 2> "$tmp/es.err"; then
+        h=$("$readelf" -h "$tmp/es")
+        echo "$h" | grep -q "Machine: *AArch64" || bad "es: not AArch64"
+        echo "$h" | grep -q "Type: *DYN" || bad "es: not a PIE (ET_DYN)"
+        echo "$h" | grep -q "OS/ABI: *UNIX - OpenBSD" || bad "es: ELF OS/ABI byte is not 12 (what the kernel and ld.so recognise)"
+        "$readelf" -d "$tmp/es" 2>/dev/null | grep -q 'NEEDED' && bad "es: the static hello is dynamically linked"
+        "$readelf" -l "$tmp/es" | grep -q 'OPENBSD_RANDOMIZE' || bad "es: no PT_OPENBSD_RANDOMIZE segment"
+        "$readelf" -s "$tmp/es" | grep -q '_Unwind_RaiseException' || bad "es: no unwinder linked in (catch_unwind needs libunwind)"
+    else
+        bad "the hello for $target did not link statically: $(head -8 "$tmp/es.err")"
+    fi
+    if "$rustc" --target "$target" $link -O -o "$tmp/ed" "$tmp/e.rs" 2> "$tmp/ed.err"; then
+        "$readelf" -l "$tmp/ed" | grep -q '/usr/libexec/ld.so' || bad "ed: interpreter is not /usr/libexec/ld.so"
+        "$readelf" -d "$tmp/ed" | grep -q 'libc.so' || bad "ed: libc.so is not NEEDED"
+    else
+        bad "the hello for $target did not link dynamically: $(head -8 "$tmp/ed.err")"
+    fi
+fi
+
+[ "$fail" = 0 ] && echo "check.sh: $prefix: ok (rustc $version for $host, core/alloc for $kernel${target:+, std for $target}, LLVM $llvm_version)"
 exit $fail

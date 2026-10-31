@@ -26,7 +26,7 @@
 # 2. target/rust/build: x.py install with target/rust/config.toml: stage0 the host's pinned
 #    rustc and cargo (rust-toolchain.toml), llvm-config from llvm/'s install (T1), rustc,
 #    cargo, clippy, rustfmt and the sources for the host, std for the host, core and alloc
-#    for the kernel's target; installed under target/rust/install-<host>/, a directory
+#    for the kernel's target, std for the system's target; installed under target/rust/install-<host>/, a directory
 #    `rustup toolchain link` accepts.
 # 3. tests/check.sh over the result.
 #
@@ -56,7 +56,8 @@ HOST=$("$STAGE0_RUSTC" -vV | sed -n 's/^host: //p')
 LLVM=$ROOT/target/llvm/$(cc -dumpmachine 2>/dev/null || echo host)
 [ -x "$LLVM/bin/llvm-config" ] || { echo "build: $LLVM/bin/llvm-config missing: just build llvm first" >&2; exit 1; }
 KERNEL_TARGET=aarch64-unknown-none-softfloat          # the kernel's: core and alloc, no std (D-0006)
-TARGETS="\"$HOST\", \"$KERNEL_TARGET\""
+TARGET=aarch64-emibsd-emibsd                          # the system's (D-0004, patches/): std, against the sysroot
+TARGETS="\"$HOST\", \"$KERNEL_TARGET\", \"$TARGET\""
 JOBS=${COMP_JOBS:-6}
 # Not named after the host tuple: rustc derives its sysroot from its dylib's directory and
 # takes a directory so named for lib/rustlib/<host>/lib, three levels deeper than it is.
@@ -109,6 +110,21 @@ if [ -L "$VENDOR" ] || [ ! -d "$VENDOR" ]; then
     rm -f "$VENDOR"
     cp -c -R "$VENDOR_SRC" "$VENDOR" 2>/dev/null || cp -R "$VENDOR_SRC" "$VENDOR"
     chmod -R u+w "$VENDOR"
+fi
+# The libc crate std links comes from its mirror, patched (.emibsd/libc, patches/): placed in
+# the vendored package's stead, with no checksum, so cargo builds it as the registry crate it
+# replaces, with the same lint cap and the same lock (D-0004).
+libc_version=$(sed -n 's/^version *= *"\([^"]*\)".*/\1/p' "$SRC/.emibsd/libc/Cargo.toml" | head -1)
+if [ "$(cat "$VENDOR/libc-$libc_version/.emibsd-overlay" 2>/dev/null)" != "$stamp" ]; then   # remade whenever the series did
+    echo "== libc $libc_version: the mirror's, patched, in place of the vendored crate"
+    rm -rf "$VENDOR/libc-$libc_version"
+    cp -c -R "$SRC/.emibsd/libc" "$VENDOR/libc-$libc_version" 2>/dev/null || cp -R "$SRC/.emibsd/libc" "$VENDOR/libc-$libc_version"
+    chmod -R u+w "$VENDOR/libc-$libc_version"
+    printf '{"files":{},"package":null}\n' > "$VENDOR/libc-$libc_version/.cargo-checksum.json"
+    printf '%s\n' "$stamp" > "$VENDOR/libc-$libc_version/.emibsd-overlay"
+    # cargo takes a vendored crate as immutable and would not rebuild it: the compiled
+    # standard libraries, which carry it, start over.
+    rm -rf "$OUT"/build/*/stage*-std
 fi
 # The copy has no .git; bootstrap treats a tree with git-commit-info as the official source
 # tarball (the file it writes there): no submodule is demanded, the channel comes from
@@ -178,10 +194,21 @@ llvm-config = "$LLVM/bin/llvm-config"
 [target.$KERNEL_TARGET]
 cc = "$LLVM/bin/clang"
 ar = "$LLVM/bin/llvm-ar"
+
+[target.$TARGET]
+cc = "$LLVM/bin/clang"
+cxx = "$LLVM/bin/clang++"
+linker = "$LLVM/bin/clang"
+ar = "$LLVM/bin/llvm-ar"
+ranlib = "$LLVM/bin/llvm-ranlib"
+rustflags = ["-C", "link-arg=--sysroot=$EMIBSD_SYSROOT"]
 TOML
+# The C bits of std for the system's target (compiler_builtins) see its libc headers.
+export CFLAGS_aarch64_emibsd_emibsd="--sysroot=$EMIBSD_SYSROOT"
+export CXXFLAGS_aarch64_emibsd_emibsd="--sysroot=$EMIBSD_SYSROOT"
 
 echo "== x.py install ($HOST; targets: $TARGETS; $JOBS jobs; LLVM $LLVM)"
 rm -rf "$PREFIX"
 (cd "$SRC" && python3 x.py install --config "$ROOT/$OUT/config.toml" --build-dir "$ROOT/$OUT/build")
 echo "== done: $PREFIX"
-sh rust/tests/check.sh "$PREFIX" "$HOST" "$KERNEL_TARGET"
+sh rust/tests/check.sh "$PREFIX" "$HOST" "$KERNEL_TARGET" "$TARGET" "$LLVM"

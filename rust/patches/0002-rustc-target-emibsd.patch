@@ -1,0 +1,108 @@
+rustc: the target aarch64-emibsd-emibsd
+
+Why a patch: rustc knows nothing of EmiBSD, and DevTools' rustc emits for
+aarch64-emibsd-emibsd (D-0004): the OS `emibsd` in rustc_target's Os enum,
+a base `spec/base/emibsd.rs` stating what the ABI asks of the target, which
+is the ABI its kernel and libc present (a dynamic system of PIE executables,
+emulated TLS because its run-time link-editor has no ELF TLS, full RELRO,
+frame pointers kept, structs returned as integers, +crt-static honoured as a
+static PIE), the vendor `emibsd`, and
+the target `aarch64-emibsd-emibsd` whose LLVM triple carries the release the
+ABI belongs to, aarch64-emibsd-emibsd8.0 (the name of the target does not,
+as x86_64-unknown-freebsd does not); rustdoc names the OS "EmiBSD" in
+the documentation's cfg notes. Tier 3 by upstream's rules. Written by
+EmiBSD (ISC); carried by DevTools over the pinned tag, offered upstream when
+stable. Author: Emilio Navarrete Lineros, 2026-10-31.
+
+--- /dev/null
++++ b/compiler/rustc_target/src/spec/base/emibsd.rs
+@@ -0,0 +1,25 @@
++use crate::spec::{FramePointer, Os, RelroLevel, TargetOptions, TlsModel, cvs};
++
++/// EmiBSD: the ABI its kernel and libc present, which is OpenBSD's (D-0003 of DevTools:
++/// written from the ABI, not copied); a dynamic system whose executables are PIE, with no
++/// ELF TLS in its run-time link-editor (emulated TLS), full RELRO, frame pointers kept for
++/// the kernel's and ld.so's backtraces.
++pub(crate) fn opts() -> TargetOptions {
++    TargetOptions {
++        os: Os::EmiBsd,
++        vendor: "emibsd".into(),
++        dynamic_linking: true,
++        families: cvs!["unix"],
++        has_rpath: true,
++        abi_return_struct_as_int: true,
++        position_independent_executables: true,
++        // +crt-static gives a static PIE (rcrt0.o): rustc asks the driver for -static-pie.
++        crt_static_respected: true,
++        static_position_independent_executables: true,
++        frame_pointer: FramePointer::Always,
++        relro_level: RelroLevel::Full,
++        default_dwarf_version: 2,
++        tls_model: TlsModel::Emulated,
++        ..Default::default()
++    }
++}
+--- a/compiler/rustc_target/src/spec/base/mod.rs
++++ b/compiler/rustc_target/src/spec/base/mod.rs
+@@ -6,6 +6,7 @@
+ pub(crate) mod bpf;
+ pub(crate) mod cygwin;
+ pub(crate) mod dragonfly;
++pub(crate) mod emibsd;
+ pub(crate) mod freebsd;
+ pub(crate) mod fuchsia;
+ pub(crate) mod haiku;
+--- a/compiler/rustc_target/src/spec/mod.rs
++++ b/compiler/rustc_target/src/spec/mod.rs
+@@ -1524,6 +1524,7 @@
+ 
+     ("x86_64-unknown-dragonfly", x86_64_unknown_dragonfly),
+ 
++    ("aarch64-emibsd-emibsd", aarch64_emibsd_emibsd),
+     ("aarch64-unknown-openbsd", aarch64_unknown_openbsd),
+     ("i686-unknown-openbsd", i686_unknown_openbsd),
+     ("powerpc-unknown-openbsd", powerpc_unknown_openbsd),
+@@ -1978,6 +1979,7 @@
+         Cuda = "cuda",
+         Cygwin = "cygwin",
+         Dragonfly = "dragonfly",
++        EmiBsd = "emibsd",
+         Emscripten = "emscripten",
+         EspIdf = "espidf",
+         FreeBsd = "freebsd",
+--- /dev/null
++++ b/compiler/rustc_target/src/spec/targets/aarch64_emibsd_emibsd.rs
+@@ -0,0 +1,23 @@
++use crate::spec::{Arch, StackProbeType, Target, TargetMetadata, TargetOptions, base};
++
++pub(crate) fn target() -> Target {
++    Target {
++        // The LLVM triple carries the EmiBSD release the ABI belongs to; the target's name does not.
++        llvm_target: "aarch64-emibsd-emibsd8.0".into(),
++        metadata: TargetMetadata {
++            description: Some("ARM64 EmiBSD 8.0".into()),
++            tier: Some(3),
++            host_tools: Some(true),
++            std: Some(true),
++        },
++        pointer_width: 64,
++        data_layout: "e-m:e-p270:32:32-p271:32:32-p272:64:64-i8:8:32-i16:16:32-i64:64-i128:128-n32:64-S128-Fn32".into(),
++        arch: Arch::AArch64,
++        options: TargetOptions {
++            features: "+v8a".into(),
++            max_atomic_width: Some(128),
++            stack_probes: StackProbeType::Inline,
++            ..base::emibsd::opts()
++        },
++    }
++}
+--- a/src/librustdoc/clean/cfg.rs
++++ b/src/librustdoc/clean/cfg.rs
+@@ -640,6 +640,7 @@
+         None => "bare-metal",
+         Nto => "QNX SDP 7.x",
+         NuttX => "NuttX",
++        EmiBsd => "EmiBSD",
+         OpenBsd => "OpenBSD",
+         Psp => "Play Station Portable",
+         Psx => "Play Station 1",

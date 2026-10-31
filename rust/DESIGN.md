@@ -55,6 +55,7 @@ The plan of T2 (the maintainer, 2026-10-31, D-0006), in three slices:
 | `rust.lld` | `false` | the linker is `llvm/`'s lld through its clang driver, not a bundled `rust-lld` |
 | `target.<host>.llvm-config` | `target/llvm/<host>/bin/llvm-config` | rustc's backend is `llvm/`'s LLVM (D-0003) |
 | `target.aarch64-unknown-none-softfloat.cc`, `.ar` | `llvm/`'s clang and llvm-ar | the C sources of `compiler_builtins` for the kernel's target |
+| `target.aarch64-emibsd-emibsd.cc`, `.cxx`, `.linker`, `.ar`, `.ranlib`, `.rustflags = -C link-arg=--sysroot=$EMIBSD_SYSROOT`; `CFLAGS_aarch64_emibsd_emibsd=--sysroot=$EMIBSD_SYSROOT` | `llvm/`'s clang, clang++, llvm-ar, llvm-ranlib | the system's target is compiled and linked by the system's own toolchain (T1) against the sysroot; a Rust program for it is linked with `-C linker=<that clang> -C link-arg=--sysroot=...` |
 
 ## Licences of the vendored crates (docs/POLICIES.md)
 
@@ -77,9 +78,11 @@ One line per patch of `patches/`: what it changes and why it could not stay upst
 
 | Patch | What |
 |---|---|
+| `0002-rustc-target-emibsd` | `Os::EmiBsd`, `spec/base/emibsd.rs` (what the ABI asks: PIE, dynamic, emulated TLS, full RELRO, frame pointers, structs returned as integers), the target `aarch64-emibsd-emibsd` with `llvm-target` `aarch64-emibsd-emibsd8.0`, vendor `emibsd`, tier 3 |
+| `0003-std-emibsd` | `target_os = "emibsd"` joins every `openbsd` condition of std, unwind and backtrace (the libc interface is the same); EmiBSD's own where the name counts: `std::os::emibsd`, `env::consts::OS`, std's build script; the unwinder links `libunwind` beside `libc++abi` |
+| `0004-libc-emibsd` | the libc crate from its mirror (`.emibsd/libc`, 0.2.185): `emibsd` joins `openbsd` in its module selection and check-cfg; `build.sh` places it, patched, in the vendored `libc-0.2.185`'s stead with no checksum, so cargo builds it as the registry crate it replaces (same lint cap; a path dependency would surface upstream's latent warnings under `warnings = deny`); `library/Cargo.lock` drops libc's registry checksum, the one line the lock changes |
 | `0001-bootstrap-vendor-what-is-there` | bootstrap's `default_paths_to_vendor` keeps only the workspaces whose manifest and required submodules are in the tree: `generate-copyright` (run by `dist::Rustc` for the COPYRIGHT files) scans that list with `cargo metadata` and failed on the documentation books and `rustc-perf`, submodules this tree does not carry; the build glue, nothing of what the compiler emits |
 
-The target's series (D-0004) is slice 2 of T2.
 
 ## Concurrency
 

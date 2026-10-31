@@ -1,0 +1,1134 @@
+std, unwind, backtrace: the EmiBSD target
+
+Why a patch: the standard library selects its platform code by target_os,
+and EmiBSD's libc presents the same interface as OpenBSD's (D-0003: the ABI
+kept byte-identical). `target_os = "emibsd"` joins every condition that
+names "openbsd" in std, unwind and backtrace (futex(2), arc4random, the
+stack-guard query through pthread_stackseg_np, getthrid, the socket options,
+the file-system calls, dl_iterate_phdr for backtraces, libc++abi for the
+unwinder); what carries the system's name is EmiBSD's own: std::os::emibsd
+(the raw types and MetadataExt, as std::os::openbsd has them),
+std::env::consts::OS = "emibsd", the target_os list of std's build script;
+the unwinder links libunwind too, because DevTools builds libc++abi over
+LLVM's libunwind as a library of its own. Written by EmiBSD (ISC) over
+upstream's text (Apache-2.0 OR MIT), carried by DevTools over the pinned
+tag, offered upstream when stable. Author: Emilio Navarrete Lineros,
+2026-10-31.
+
+--- a/library/backtrace/src/symbolize/gimli.rs
++++ b/library/backtrace/src/symbolize/gimli.rs
+@@ -39,7 +39,7 @@
+         target_os = "haiku",
+         target_os = "hurd",
+         target_os = "linux",
+-        target_os = "openbsd",
++        any(target_os = "openbsd", target_os = "emibsd"),
+         target_os = "solaris",
+         target_os = "illumos",
+         target_os = "aix",
+@@ -227,7 +227,7 @@
+             target_os = "fuchsia",
+             target_os = "freebsd",
+             target_os = "hurd",
+-            target_os = "openbsd",
++            any(target_os = "openbsd", target_os = "emibsd"),
+             target_os = "netbsd",
+             target_os = "nto",
+             target_os = "android",
+--- a/library/std/build.rs
++++ b/library/std/build.rs
+@@ -22,6 +22,7 @@
+         || target_os == "netbsd"
+         || target_os == "dragonfly"
+         || target_os == "openbsd"
++        || target_os == "emibsd"
+         || target_os == "freebsd"
+         || target_os == "solaris"
+         || target_os == "illumos"
+--- a/library/std/src/fs/tests.rs
++++ b/library/std/src/fs/tests.rs
+@@ -185,7 +185,7 @@
+         target_os = "illumos",
+         target_os = "linux",
+         target_os = "netbsd",
+-        target_os = "openbsd",
++        any(target_os = "openbsd", target_os = "emibsd"),
+         target_os = "solaris",
+         target_os = "android",
+         target_vendor = "apple",
+@@ -219,7 +219,7 @@
+         target_os = "illumos",
+         target_os = "linux",
+         target_os = "netbsd",
+-        target_os = "openbsd",
++        any(target_os = "openbsd", target_os = "emibsd"),
+         target_os = "solaris",
+         target_os = "android",
+         target_vendor = "apple",
+@@ -254,7 +254,7 @@
+         target_os = "illumos",
+         target_os = "linux",
+         target_os = "netbsd",
+-        target_os = "openbsd",
++        any(target_os = "openbsd", target_os = "emibsd"),
+         target_os = "solaris",
+         target_os = "android",
+         target_vendor = "apple",
+@@ -286,7 +286,7 @@
+         target_os = "illumos",
+         target_os = "linux",
+         target_os = "netbsd",
+-        target_os = "openbsd",
++        any(target_os = "openbsd", target_os = "emibsd"),
+         target_os = "solaris",
+         target_os = "android",
+         target_vendor = "apple",
+@@ -320,7 +320,7 @@
+         target_os = "illumos",
+         target_os = "linux",
+         target_os = "netbsd",
+-        target_os = "openbsd",
++        any(target_os = "openbsd", target_os = "emibsd"),
+         target_os = "solaris",
+         target_os = "android",
+         target_vendor = "apple",
+--- a/library/std/src/net/tcp/tests.rs
++++ b/library/std/src/net/tcp/tests.rs
+@@ -735,7 +735,7 @@
+ #[cfg_attr(
+     any(
+         target_os = "netbsd",
+-        target_os = "openbsd",
++        any(target_os = "openbsd", target_os = "emibsd"),
+         target_os = "vxworks",
+         target_os = "nto",
+         target_os = "qnx"
+--- a/library/std/src/net/udp/tests.rs
++++ b/library/std/src/net/udp/tests.rs
+@@ -190,7 +190,7 @@
+ #[cfg_attr(
+     any(
+         target_os = "netbsd",
+-        target_os = "openbsd",
++        any(target_os = "openbsd", target_os = "emibsd"),
+         target_os = "vxworks",
+         target_os = "nto",
+         target_os = "qnx"
+--- /dev/null
++++ b/library/std/src/os/emibsd/fs.rs
+@@ -0,0 +1,136 @@
++#![stable(feature = "metadata_ext", since = "1.1.0")]
++
++use crate::fs::Metadata;
++#[allow(deprecated)]
++use crate::os::emibsd::raw;
++use crate::sys::AsInner;
++
++/// OS-specific extensions to [`fs::Metadata`].
++///
++/// [`fs::Metadata`]: crate::fs::Metadata
++#[stable(feature = "metadata_ext", since = "1.1.0")]
++pub trait MetadataExt {
++    /// Gain a reference to the underlying `stat` structure which contains
++    /// the raw information returned by the OS.
++    ///
++    /// The contents of the returned `stat` are **not** consistent across
++    /// Unix platforms. The `os::unix::fs::MetadataExt` trait contains the
++    /// cross-Unix abstractions contained within the raw stat.
++    #[stable(feature = "metadata_ext", since = "1.1.0")]
++    #[deprecated(
++        since = "1.8.0",
++        note = "deprecated in favor of the accessor \
++                methods of this trait"
++    )]
++    #[allow(deprecated)]
++    fn as_raw_stat(&self) -> &raw::stat;
++
++    #[stable(feature = "metadata_ext2", since = "1.8.0")]
++    fn st_dev(&self) -> u64;
++    #[stable(feature = "metadata_ext2", since = "1.8.0")]
++    fn st_ino(&self) -> u64;
++    #[stable(feature = "metadata_ext2", since = "1.8.0")]
++    fn st_mode(&self) -> u32;
++    #[stable(feature = "metadata_ext2", since = "1.8.0")]
++    fn st_nlink(&self) -> u64;
++    #[stable(feature = "metadata_ext2", since = "1.8.0")]
++    fn st_uid(&self) -> u32;
++    #[stable(feature = "metadata_ext2", since = "1.8.0")]
++    fn st_gid(&self) -> u32;
++    #[stable(feature = "metadata_ext2", since = "1.8.0")]
++    fn st_rdev(&self) -> u64;
++    #[stable(feature = "metadata_ext2", since = "1.8.0")]
++    fn st_size(&self) -> u64;
++    #[stable(feature = "metadata_ext2", since = "1.8.0")]
++    fn st_atime(&self) -> i64;
++    #[stable(feature = "metadata_ext2", since = "1.8.0")]
++    fn st_atime_nsec(&self) -> i64;
++    #[stable(feature = "metadata_ext2", since = "1.8.0")]
++    fn st_mtime(&self) -> i64;
++    #[stable(feature = "metadata_ext2", since = "1.8.0")]
++    fn st_mtime_nsec(&self) -> i64;
++    #[stable(feature = "metadata_ext2", since = "1.8.0")]
++    fn st_ctime(&self) -> i64;
++    #[stable(feature = "metadata_ext2", since = "1.8.0")]
++    fn st_ctime_nsec(&self) -> i64;
++    #[stable(feature = "metadata_ext2", since = "1.8.0")]
++    fn st_birthtime(&self) -> i64;
++    #[stable(feature = "metadata_ext2", since = "1.8.0")]
++    fn st_birthtime_nsec(&self) -> i64;
++    #[stable(feature = "metadata_ext2", since = "1.8.0")]
++    fn st_blksize(&self) -> u64;
++    #[stable(feature = "metadata_ext2", since = "1.8.0")]
++    fn st_blocks(&self) -> u64;
++    #[stable(feature = "metadata_ext2", since = "1.8.0")]
++    fn st_flags(&self) -> u32;
++    #[stable(feature = "metadata_ext2", since = "1.8.0")]
++    fn st_gen(&self) -> u32;
++}
++
++#[stable(feature = "metadata_ext", since = "1.1.0")]
++impl MetadataExt for Metadata {
++    #[allow(deprecated)]
++    fn as_raw_stat(&self) -> &raw::stat {
++        unsafe { &*(self.as_inner().as_inner() as *const libc::stat as *const raw::stat) }
++    }
++    fn st_dev(&self) -> u64 {
++        self.as_inner().as_inner().st_dev as u64
++    }
++    fn st_ino(&self) -> u64 {
++        self.as_inner().as_inner().st_ino as u64
++    }
++    fn st_mode(&self) -> u32 {
++        self.as_inner().as_inner().st_mode as u32
++    }
++    fn st_nlink(&self) -> u64 {
++        self.as_inner().as_inner().st_nlink as u64
++    }
++    fn st_uid(&self) -> u32 {
++        self.as_inner().as_inner().st_uid as u32
++    }
++    fn st_gid(&self) -> u32 {
++        self.as_inner().as_inner().st_gid as u32
++    }
++    fn st_rdev(&self) -> u64 {
++        self.as_inner().as_inner().st_rdev as u64
++    }
++    fn st_size(&self) -> u64 {
++        self.as_inner().as_inner().st_size as u64
++    }
++    fn st_atime(&self) -> i64 {
++        self.as_inner().as_inner().st_atime as i64
++    }
++    fn st_atime_nsec(&self) -> i64 {
++        self.as_inner().as_inner().st_atime_nsec as i64
++    }
++    fn st_mtime(&self) -> i64 {
++        self.as_inner().as_inner().st_mtime as i64
++    }
++    fn st_mtime_nsec(&self) -> i64 {
++        self.as_inner().as_inner().st_mtime_nsec as i64
++    }
++    fn st_ctime(&self) -> i64 {
++        self.as_inner().as_inner().st_ctime as i64
++    }
++    fn st_ctime_nsec(&self) -> i64 {
++        self.as_inner().as_inner().st_ctime_nsec as i64
++    }
++    fn st_birthtime(&self) -> i64 {
++        self.as_inner().as_inner().st_birthtime as i64
++    }
++    fn st_birthtime_nsec(&self) -> i64 {
++        self.as_inner().as_inner().st_birthtime_nsec as i64
++    }
++    fn st_blksize(&self) -> u64 {
++        self.as_inner().as_inner().st_blksize as u64
++    }
++    fn st_blocks(&self) -> u64 {
++        self.as_inner().as_inner().st_blocks as u64
++    }
++    fn st_gen(&self) -> u32 {
++        self.as_inner().as_inner().st_gen as u32
++    }
++    fn st_flags(&self) -> u32 {
++        self.as_inner().as_inner().st_flags as u32
++    }
++}
+--- /dev/null
++++ b/library/std/src/os/emibsd/mod.rs
+@@ -0,0 +1,6 @@
++//! EmiBSD-specific definitions
++
++#![stable(feature = "raw_ext", since = "1.1.0")]
++
++pub mod fs;
++pub mod raw;
+--- /dev/null
++++ b/library/std/src/os/emibsd/raw.rs
+@@ -0,0 +1,81 @@
++//! EmiBSD-specific raw type definitions
++
++#![stable(feature = "raw_ext", since = "1.1.0")]
++#![deprecated(
++    since = "1.8.0",
++    note = "these type aliases are no longer supported by \
++            the standard library, the `libc` crate on \
++            crates.io should be used instead for the correct \
++            definitions"
++)]
++#![allow(deprecated)]
++
++use crate::os::raw::c_long;
++
++#[stable(feature = "raw_ext", since = "1.1.0")]
++pub type blkcnt_t = u64;
++#[stable(feature = "raw_ext", since = "1.1.0")]
++pub type blksize_t = u64;
++#[stable(feature = "raw_ext", since = "1.1.0")]
++pub type dev_t = u64;
++#[stable(feature = "raw_ext", since = "1.1.0")]
++pub type fflags_t = u32;
++#[stable(feature = "raw_ext", since = "1.1.0")]
++pub type ino_t = u64;
++#[stable(feature = "raw_ext", since = "1.1.0")]
++pub type mode_t = u32;
++#[stable(feature = "raw_ext", since = "1.1.0")]
++pub type nlink_t = u64;
++#[stable(feature = "raw_ext", since = "1.1.0")]
++pub type off_t = u64;
++#[stable(feature = "raw_ext", since = "1.1.0")]
++pub type time_t = i64;
++
++#[stable(feature = "pthread_t", since = "1.8.0")]
++pub type pthread_t = usize;
++
++#[repr(C)]
++#[derive(Clone)]
++#[stable(feature = "raw_ext", since = "1.1.0")]
++pub struct stat {
++    #[stable(feature = "raw_ext", since = "1.1.0")]
++    pub st_mode: u32,
++    #[stable(feature = "raw_ext", since = "1.1.0")]
++    pub st_dev: i32,
++    #[stable(feature = "raw_ext", since = "1.1.0")]
++    pub st_ino: u64,
++    #[stable(feature = "raw_ext", since = "1.1.0")]
++    pub st_nlink: u32,
++    #[stable(feature = "raw_ext", since = "1.1.0")]
++    pub st_uid: u32,
++    #[stable(feature = "raw_ext", since = "1.1.0")]
++    pub st_gid: u32,
++    #[stable(feature = "raw_ext", since = "1.1.0")]
++    pub st_rdev: i32,
++    #[stable(feature = "raw_ext", since = "1.1.0")]
++    pub st_atime: i64,
++    #[stable(feature = "raw_ext", since = "1.1.0")]
++    pub st_atime_nsec: c_long,
++    #[stable(feature = "raw_ext", since = "1.1.0")]
++    pub st_mtime: i64,
++    #[stable(feature = "raw_ext", since = "1.1.0")]
++    pub st_mtime_nsec: c_long,
++    #[stable(feature = "raw_ext", since = "1.1.0")]
++    pub st_ctime: i64,
++    #[stable(feature = "raw_ext", since = "1.1.0")]
++    pub st_ctime_nsec: c_long,
++    #[stable(feature = "raw_ext", since = "1.1.0")]
++    pub st_size: i64,
++    #[stable(feature = "raw_ext", since = "1.1.0")]
++    pub st_blocks: i64,
++    #[stable(feature = "raw_ext", since = "1.1.0")]
++    pub st_blksize: i32,
++    #[stable(feature = "raw_ext", since = "1.1.0")]
++    pub st_flags: u32,
++    #[stable(feature = "raw_ext", since = "1.1.0")]
++    pub st_gen: u32,
++    #[stable(feature = "raw_ext", since = "1.1.0")]
++    pub st_birthtime: i64,
++    #[stable(feature = "raw_ext", since = "1.1.0")]
++    pub st_birthtime_nsec: c_long,
++}
+--- a/library/std/src/os/mod.rs
++++ b/library/std/src/os/mod.rs
+@@ -125,6 +125,8 @@
+ pub mod nto;
+ #[cfg(target_os = "nuttx")]
+ pub mod nuttx;
++#[cfg(target_os = "emibsd")]
++pub mod emibsd;
+ #[cfg(target_os = "openbsd")]
+ pub mod openbsd;
+ #[cfg(target_os = "redox")]
+--- a/library/std/src/os/unix/mod.rs
++++ b/library/std/src/os/unix/mod.rs
+@@ -73,6 +73,8 @@
+     pub use crate::os::nto::*;
+     #[cfg(target_os = "nuttx")]
+     pub use crate::os::nuttx::*;
++    #[cfg(target_os = "emibsd")]
++    pub use crate::os::emibsd::*;
+     #[cfg(target_os = "openbsd")]
+     pub use crate::os::openbsd::*;
+     #[cfg(target_os = "redox")]
+--- a/library/std/src/os/unix/net/addr.rs
++++ b/library/std/src/os/unix/net/addr.rs
+@@ -104,7 +104,7 @@
+         addr: libc::sockaddr_un,
+         mut len: libc::socklen_t,
+     ) -> io::Result<SocketAddr> {
+-        if cfg!(target_os = "openbsd") {
++        if cfg!(any(target_os = "openbsd", target_os = "emibsd")) {
+             // on OpenBSD, getsockname(2) returns the actual size of the socket address,
+             // and not the len of the content. Figure out the length for ourselves.
+             // https://marc.info/?l=openbsd-bugs&m=170105481926736&w=2
+--- a/library/std/src/os/unix/net/datagram.rs
++++ b/library/std/src/os/unix/net/datagram.rs
+@@ -3,7 +3,7 @@
+     target_os = "android",
+     target_os = "dragonfly",
+     target_os = "freebsd",
+-    target_os = "openbsd",
++    any(target_os = "openbsd", target_os = "emibsd"),
+     target_os = "netbsd",
+     target_os = "solaris",
+     target_os = "illumos",
+@@ -31,7 +31,7 @@
+     target_os = "android",
+     target_os = "dragonfly",
+     target_os = "freebsd",
+-    target_os = "openbsd",
++    any(target_os = "openbsd", target_os = "emibsd"),
+     target_os = "netbsd",
+     target_os = "solaris",
+     target_os = "illumos",
+@@ -836,11 +836,11 @@
+     /// Set the id of the socket for network filtering purpose
+     ///
+     #[cfg_attr(
+-        any(target_os = "linux", target_os = "freebsd", target_os = "openbsd"),
++        any(target_os = "linux", target_os = "freebsd", any(target_os = "openbsd", target_os = "emibsd")),
+         doc = "```no_run"
+     )]
+     #[cfg_attr(
+-        not(any(target_os = "linux", target_os = "freebsd", target_os = "openbsd")),
++        not(any(target_os = "linux", target_os = "freebsd", any(target_os = "openbsd", target_os = "emibsd"))),
+         doc = "```ignore"
+     )]
+     /// #![feature(unix_set_mark)]
+@@ -852,7 +852,7 @@
+     ///     Ok(())
+     /// }
+     /// ```
+-    #[cfg(any(doc, target_os = "linux", target_os = "freebsd", target_os = "openbsd",))]
++    #[cfg(any(doc, target_os = "linux", target_os = "freebsd", any(target_os = "openbsd", target_os = "emibsd"),))]
+     #[unstable(feature = "unix_set_mark", issue = "96467")]
+     pub fn set_mark(&self, mark: u32) -> io::Result<()> {
+         self.0.set_mark(mark)
+--- a/library/std/src/os/unix/net/listener.rs
++++ b/library/std/src/os/unix/net/listener.rs
+@@ -85,7 +85,7 @@
+                 // Silently capped to `kern.ipc.soacceptqueue`.
+                 target_os = "freebsd",
+                 // Silently capped to `kern.somaxconn sysctl`.
+-                target_os = "openbsd",
++                any(target_os = "openbsd", target_os = "emibsd"),
+                 // Silently capped to the default 128.
+                 target_vendor = "apple",
+             ))]
+@@ -97,7 +97,7 @@
+                 target_os = "horizon",
+                 target_os = "linux",
+                 target_os = "freebsd",
+-                target_os = "openbsd",
++                any(target_os = "openbsd", target_os = "emibsd"),
+                 target_vendor = "apple",
+             )))]
+             const backlog: libc::c_int = libc::SOMAXCONN;
+--- a/library/std/src/os/unix/net/mod.rs
++++ b/library/std/src/os/unix/net/mod.rs
+@@ -18,7 +18,7 @@
+     target_os = "dragonfly",
+     target_os = "freebsd",
+     target_os = "netbsd",
+-    target_os = "openbsd",
++    any(target_os = "openbsd", target_os = "emibsd"),
+     target_os = "nto",
+     target_os = "qnx",
+     target_vendor = "apple",
+@@ -43,7 +43,7 @@
+     target_os = "dragonfly",
+     target_os = "freebsd",
+     target_os = "netbsd",
+-    target_os = "openbsd",
++    any(target_os = "openbsd", target_os = "emibsd"),
+     target_os = "nto",
+     target_os = "qnx",
+     target_vendor = "apple",
+--- a/library/std/src/os/unix/net/stream.rs
++++ b/library/std/src/os/unix/net/stream.rs
+@@ -3,7 +3,7 @@
+         target_os = "linux", target_os = "android",
+         target_os = "hurd",
+         target_os = "dragonfly", target_os = "freebsd",
+-        target_os = "openbsd", target_os = "netbsd",
++        any(target_os = "openbsd", target_os = "emibsd"), target_os = "netbsd",
+         target_os = "solaris", target_os = "illumos",
+         target_os = "haiku", target_os = "nto",
+         target_os = "qnx", target_os = "cygwin",
+@@ -24,7 +24,7 @@
+     target_os = "dragonfly",
+     target_os = "freebsd",
+     target_os = "netbsd",
+-    target_os = "openbsd",
++    any(target_os = "openbsd", target_os = "emibsd"),
+     target_os = "nto",
+     target_os = "qnx",
+     target_vendor = "apple",
+@@ -254,7 +254,7 @@
+         target_os = "dragonfly",
+         target_os = "freebsd",
+         target_os = "netbsd",
+-        target_os = "openbsd",
++        any(target_os = "openbsd", target_os = "emibsd"),
+         target_os = "nto",
+         target_vendor = "apple",
+         target_os = "cygwin"
+@@ -410,11 +410,11 @@
+     /// Set the id of the socket for network filtering purpose
+     ///
+     #[cfg_attr(
+-        any(target_os = "linux", target_os = "freebsd", target_os = "openbsd"),
++        any(target_os = "linux", target_os = "freebsd", any(target_os = "openbsd", target_os = "emibsd")),
+         doc = "```no_run"
+     )]
+     #[cfg_attr(
+-        not(any(target_os = "linux", target_os = "freebsd", target_os = "openbsd")),
++        not(any(target_os = "linux", target_os = "freebsd", any(target_os = "openbsd", target_os = "emibsd"))),
+         doc = "```ignore"
+     )]
+     /// #![feature(unix_set_mark)]
+@@ -426,7 +426,7 @@
+     ///     Ok(())
+     /// }
+     /// ```
+-    #[cfg(any(doc, target_os = "linux", target_os = "freebsd", target_os = "openbsd",))]
++    #[cfg(any(doc, target_os = "linux", target_os = "freebsd", any(target_os = "openbsd", target_os = "emibsd"),))]
+     #[unstable(feature = "unix_set_mark", issue = "96467")]
+     pub fn set_mark(&self, mark: u32) -> io::Result<()> {
+         self.0.set_mark(mark)
+--- a/library/std/src/os/unix/net/ucred.rs
++++ b/library/std/src/os/unix/net/ucred.rs
+@@ -28,7 +28,7 @@
+ #[cfg(any(
+     target_os = "dragonfly",
+     target_os = "freebsd",
+-    target_os = "openbsd",
++    any(target_os = "openbsd", target_os = "emibsd"),
+     target_os = "netbsd",
+     target_os = "nto",
+     target_os = "qnx"
+@@ -77,7 +77,7 @@
+ #[cfg(any(
+     target_os = "dragonfly",
+     target_os = "freebsd",
+-    target_os = "openbsd",
++    any(target_os = "openbsd", target_os = "emibsd"),
+     target_os = "netbsd",
+     target_os = "nto",
+     target_os = "qnx",
+--- a/library/std/src/os/unix/net/ucred/tests.rs
++++ b/library/std/src/os/unix/net/ucred/tests.rs
+@@ -8,7 +8,7 @@
+     target_os = "linux",
+     target_os = "dragonfly",
+     target_os = "freebsd",
+-    target_os = "openbsd",
++    any(target_os = "openbsd", target_os = "emibsd"),
+     target_vendor = "apple",
+ ))]
+ fn test_socket_pair() {
+--- a/library/std/src/sys/args/unix.rs
++++ b/library/std/src/sys/args/unix.rs
+@@ -67,7 +67,7 @@
+     target_os = "freebsd",
+     target_os = "dragonfly",
+     target_os = "netbsd",
+-    target_os = "openbsd",
++    any(target_os = "openbsd", target_os = "emibsd"),
+     target_os = "cygwin",
+     target_os = "solaris",
+     target_os = "illumos",
+--- a/library/std/src/sys/env_consts.rs
++++ b/library/std/src/sys/env_consts.rs
+@@ -246,6 +246,17 @@
+     pub const EXE_EXTENSION: &str = "";
+ }
+ 
++#[cfg(target_os = "emibsd")]
++pub mod os {
++    pub const FAMILY: &str = "unix";
++    pub const OS: &str = "emibsd";
++    pub const DLL_PREFIX: &str = "lib";
++    pub const DLL_SUFFIX: &str = ".so";
++    pub const DLL_EXTENSION: &str = "so";
++    pub const EXE_SUFFIX: &str = "";
++    pub const EXE_EXTENSION: &str = "";
++}
++
+ #[cfg(target_os = "openbsd")]
+ pub mod os {
+     pub const FAMILY: &str = "unix";
+--- a/library/std/src/sys/fd/unix.rs
++++ b/library/std/src/sys/fd/unix.rs
+@@ -63,7 +63,7 @@
+     target_os = "dragonfly",
+     target_os = "freebsd",
+     target_os = "netbsd",
+-    target_os = "openbsd",
++    any(target_os = "openbsd", target_os = "emibsd"),
+     target_vendor = "apple",
+     target_os = "cygwin",
+ ))]
+@@ -93,7 +93,7 @@
+     target_os = "nuttx",
+     target_os = "nto",
+     target_os = "qnx",
+-    target_os = "openbsd",
++    any(target_os = "openbsd", target_os = "emibsd"),
+     target_os = "horizon",
+     target_os = "vita",
+     target_vendor = "apple",
+@@ -220,7 +220,7 @@
+         target_os = "illumos",
+         target_os = "linux",
+         target_os = "netbsd",
+-        target_os = "openbsd", // OpenBSD 2.7
++        any(target_os = "openbsd", target_os = "emibsd"), // OpenBSD 2.7
+     ))]
+     pub fn read_vectored_at(&self, bufs: &mut [IoSliceMut<'_>], offset: u64) -> io::Result<usize> {
+         let ret = cvt(unsafe {
+@@ -245,7 +245,7 @@
+         target_os = "illumos",
+         target_os = "linux",
+         target_os = "netbsd",
+-        target_os = "openbsd",
++        any(target_os = "openbsd", target_os = "emibsd"),
+         target_vendor = "apple",
+     )))]
+     pub fn read_vectored_at(&self, bufs: &mut [IoSliceMut<'_>], offset: u64) -> io::Result<usize> {
+@@ -427,7 +427,7 @@
+         target_os = "illumos",
+         target_os = "linux",
+         target_os = "netbsd",
+-        target_os = "openbsd", // OpenBSD 2.7
++        any(target_os = "openbsd", target_os = "emibsd"), // OpenBSD 2.7
+     ))]
+     pub fn write_vectored_at(&self, bufs: &[IoSlice<'_>], offset: u64) -> io::Result<usize> {
+         let ret = cvt(unsafe {
+@@ -452,7 +452,7 @@
+         target_os = "illumos",
+         target_os = "linux",
+         target_os = "netbsd",
+-        target_os = "openbsd",
++        any(target_os = "openbsd", target_os = "emibsd"),
+         target_vendor = "apple",
+     )))]
+     pub fn write_vectored_at(&self, bufs: &[IoSlice<'_>], offset: u64) -> io::Result<usize> {
+--- a/library/std/src/sys/fs/unix.rs
++++ b/library/std/src/sys/fs/unix.rs
+@@ -708,7 +708,7 @@
+ 
+     #[cfg(any(
+         target_os = "freebsd",
+-        target_os = "openbsd",
++        any(target_os = "openbsd", target_os = "emibsd"),
+         target_vendor = "apple",
+         target_os = "cygwin",
+     ))]
+@@ -718,7 +718,7 @@
+ 
+     #[cfg(not(any(
+         target_os = "freebsd",
+-        target_os = "openbsd",
++        any(target_os = "openbsd", target_os = "emibsd"),
+         target_os = "vita",
+         target_vendor = "apple",
+         target_os = "cygwin",
+@@ -1178,7 +1178,7 @@
+         self.entry.d_ino as u64
+     }
+ 
+-    #[cfg(any(target_os = "openbsd", target_os = "netbsd", target_os = "dragonfly"))]
++    #[cfg(any(any(target_os = "openbsd", target_os = "emibsd"), target_os = "netbsd", target_os = "dragonfly"))]
+     pub fn ino(&self) -> u64 {
+         self.entry.d_fileno as u64
+     }
+@@ -1192,7 +1192,7 @@
+ 
+     #[cfg(any(
+         target_os = "netbsd",
+-        target_os = "openbsd",
++        any(target_os = "openbsd", target_os = "emibsd"),
+         target_os = "dragonfly",
+         target_vendor = "apple",
+     ))]
+@@ -1207,7 +1207,7 @@
+     }
+     #[cfg(not(any(
+         target_os = "netbsd",
+-        target_os = "openbsd",
++        any(target_os = "openbsd", target_os = "emibsd"),
+         target_os = "dragonfly",
+         target_vendor = "apple",
+     )))]
+@@ -1439,7 +1439,7 @@
+             target_os = "cygwin",
+             target_os = "android",
+             target_os = "netbsd",
+-            target_os = "openbsd",
++            any(target_os = "openbsd", target_os = "emibsd"),
+             target_os = "nto",
+             target_os = "qnx",
+             target_os = "hurd",
+@@ -1454,7 +1454,7 @@
+             target_os = "linux",
+             target_os = "cygwin",
+             target_os = "netbsd",
+-            target_os = "openbsd",
++            any(target_os = "openbsd", target_os = "emibsd"),
+             target_os = "nto",
+             target_os = "qnx",
+             target_os = "hurd",
+@@ -1473,7 +1473,7 @@
+                 target_os = "hurd",
+                 target_os = "linux",
+                 target_os = "netbsd",
+-                target_os = "openbsd",
++                any(target_os = "openbsd", target_os = "emibsd"),
+                 target_os = "cygwin",
+                 target_os = "illumos",
+                 target_os = "aix",
+@@ -1497,7 +1497,7 @@
+                 target_os = "hurd",
+                 target_os = "linux",
+                 target_os = "netbsd",
+-                target_os = "openbsd",
++                any(target_os = "openbsd", target_os = "emibsd"),
+                 target_os = "cygwin",
+                 target_os = "illumos",
+                 target_os = "aix",
+@@ -1521,7 +1521,7 @@
+                 target_os = "hurd",
+                 target_os = "linux",
+                 target_os = "netbsd",
+-                target_os = "openbsd",
++                any(target_os = "openbsd", target_os = "emibsd"),
+                 target_os = "cygwin",
+                 target_os = "illumos",
+                 target_os = "aix",
+@@ -1556,7 +1556,7 @@
+                 target_os = "hurd",
+                 target_os = "linux",
+                 target_os = "netbsd",
+-                target_os = "openbsd",
++                any(target_os = "openbsd", target_os = "emibsd"),
+                 target_os = "cygwin",
+                 target_os = "illumos",
+                 target_os = "aix",
+@@ -1591,7 +1591,7 @@
+                 target_os = "hurd",
+                 target_os = "linux",
+                 target_os = "netbsd",
+-                target_os = "openbsd",
++                any(target_os = "openbsd", target_os = "emibsd"),
+                 target_os = "cygwin",
+                 target_os = "illumos",
+                 target_os = "aix",
+--- a/library/std/src/sys/io/error/unix.rs
++++ b/library/std/src/sys/io/error/unix.rs
+@@ -16,7 +16,7 @@
+     #[cfg_attr(
+         any(
+             target_os = "netbsd",
+-            target_os = "openbsd",
++            any(target_os = "openbsd", target_os = "emibsd"),
+             target_os = "cygwin",
+             target_os = "android",
+             target_os = "redox",
+--- a/library/std/src/sys/net/connection/socket/mod.rs
++++ b/library/std/src/sys/net/connection/socket/mod.rs
+@@ -39,7 +39,7 @@
+     any(
+         target_os = "dragonfly",
+         target_os = "freebsd",
+-        target_os = "openbsd",
++        any(target_os = "openbsd", target_os = "emibsd"),
+         target_os = "netbsd",
+         target_os = "illumos",
+         target_os = "solaris",
+@@ -64,7 +64,7 @@
+         target_os = "linux", target_os = "android",
+         target_os = "hurd",
+         target_os = "dragonfly", target_os = "freebsd",
+-        target_os = "openbsd", target_os = "netbsd",
++        any(target_os = "openbsd", target_os = "emibsd"), target_os = "netbsd",
+         target_os = "solaris", target_os = "illumos",
+         target_os = "haiku",
+         target_os = "nto", target_os = "qnx",
+@@ -80,7 +80,7 @@
+ cfg_select! {
+     any(
+         target_os = "dragonfly", target_os = "freebsd",
+-        target_os = "openbsd", target_os = "netbsd",
++        any(target_os = "openbsd", target_os = "emibsd"), target_os = "netbsd",
+         target_os = "solaris", target_os = "illumos",
+         target_os = "nto", target_os = "qnx",
+     ) => {
+--- a/library/std/src/sys/net/connection/socket/unix.rs
++++ b/library/std/src/sys/net/connection/socket/unix.rs
+@@ -73,7 +73,7 @@
+                 target_os = "hurd",
+                 target_os = "linux",
+                 target_os = "netbsd",
+-                target_os = "openbsd",
++                any(target_os = "openbsd", target_os = "emibsd"),
+                 target_os = "cygwin",
+                 target_os = "nto",
+                 target_os = "qnx",
+@@ -122,7 +122,7 @@
+                     target_os = "linux",
+                     target_os = "hurd",
+                     target_os = "netbsd",
+-                    target_os = "openbsd",
++                    any(target_os = "openbsd", target_os = "emibsd"),
+                     target_os = "cygwin",
+                     target_os = "nto",
+                     target_os = "qnx",
+@@ -254,7 +254,7 @@
+                 target_os = "linux",
+                 target_os = "hurd",
+                 target_os = "netbsd",
+-                target_os = "openbsd",
++                any(target_os = "openbsd", target_os = "emibsd"),
+                 target_os = "cygwin",
+             ) => {
+                 unsafe {
+@@ -610,13 +610,13 @@
+         self.0.set_nonblocking(nonblocking)
+     }
+ 
+-    #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "openbsd"))]
++    #[cfg(any(target_os = "linux", target_os = "freebsd", any(target_os = "openbsd", target_os = "emibsd")))]
+     pub fn set_mark(&self, mark: u32) -> io::Result<()> {
+         #[cfg(target_os = "linux")]
+         let option = libc::SO_MARK;
+         #[cfg(target_os = "freebsd")]
+         let option = libc::SO_USER_COOKIE;
+-        #[cfg(target_os = "openbsd")]
++        #[cfg(any(target_os = "openbsd", target_os = "emibsd"))]
+         let option = libc::SO_RTABLE;
+         unsafe { setsockopt(self, libc::SOL_SOCKET, option, mark as libc::c_int) }
+     }
+--- a/library/std/src/sys/pal/unix/futex.rs
++++ b/library/std/src/sys/pal/unix/futex.rs
+@@ -3,7 +3,7 @@
+     target_os = "android",
+     all(target_os = "emscripten", target_feature = "atomics"),
+     target_os = "freebsd",
+-    target_os = "openbsd",
++    any(target_os = "openbsd", target_os = "emibsd"),
+     target_os = "dragonfly",
+     target_os = "fuchsia",
+ ))]
+@@ -147,7 +147,7 @@
+     };
+ }
+ 
+-#[cfg(target_os = "openbsd")]
++#[cfg(any(target_os = "openbsd", target_os = "emibsd"))]
+ pub fn futex_wait(futex: &Atomic<u32>, expected: u32, timeout: Option<Duration>) -> bool {
+     use super::time::Timespec;
+     use crate::ptr::{null, null_mut};
+@@ -170,7 +170,7 @@
+     r == 0 || crate::sys::io::errno() != libc::ETIMEDOUT
+ }
+ 
+-#[cfg(target_os = "openbsd")]
++#[cfg(any(target_os = "openbsd", target_os = "emibsd"))]
+ pub fn futex_wake(futex: &Atomic<u32>) -> bool {
+     use crate::ptr::{null, null_mut};
+     unsafe {
+@@ -184,7 +184,7 @@
+     }
+ }
+ 
+-#[cfg(target_os = "openbsd")]
++#[cfg(any(target_os = "openbsd", target_os = "emibsd"))]
+ pub fn futex_wake_all(futex: &Atomic<u32>) {
+     use crate::ptr::{null, null_mut};
+     unsafe {
+--- a/library/std/src/sys/pal/unix/mod.rs
++++ b/library/std/src/sys/pal/unix/mod.rs
+@@ -320,7 +320,7 @@
+         #[link(name = "rt")]
+         unsafe extern "C" {}
+     }
+-    any(target_os = "dragonfly", target_os = "openbsd", target_os = "cygwin") => {
++    any(target_os = "dragonfly", any(target_os = "openbsd", target_os = "emibsd"), target_os = "cygwin") => {
+         #[link(name = "pthread")]
+         unsafe extern "C" {}
+     }
+--- a/library/std/src/sys/pal/unix/stack_overflow.rs
++++ b/library/std/src/sys/pal/unix/stack_overflow.rs
+@@ -33,7 +33,7 @@
+         target_os = "hurd",
+         target_os = "macos",
+         target_os = "netbsd",
+-        target_os = "openbsd",
++        any(target_os = "openbsd", target_os = "emibsd"),
+         target_os = "solaris",
+         target_os = "illumos",
+     ),
+@@ -51,7 +51,7 @@
+         target_os = "hurd",
+         target_os = "macos",
+         target_os = "netbsd",
+-        target_os = "openbsd",
++        any(target_os = "openbsd", target_os = "emibsd"),
+         target_os = "solaris",
+         target_os = "illumos",
+     )
+@@ -207,14 +207,14 @@
+         // otherwise the said mapping will fail as a no-op on most systems
+         // and has a different meaning on FreeBSD
+         #[cfg(any(
+-            target_os = "openbsd",
++            any(target_os = "openbsd", target_os = "emibsd"),
+             target_os = "netbsd",
+             target_os = "linux",
+             target_os = "dragonfly",
+         ))]
+         let flags = MAP_PRIVATE | MAP_ANON | libc::MAP_STACK;
+         #[cfg(not(any(
+-            target_os = "openbsd",
++            any(target_os = "openbsd", target_os = "emibsd"),
+             target_os = "netbsd",
+             target_os = "linux",
+             target_os = "dragonfly",
+@@ -334,7 +334,7 @@
+         Some(stackptr.map_addr(|addr| addr - libc::pthread_get_stacksize_np(th)))
+     }
+ 
+-    #[cfg(target_os = "openbsd")]
++    #[cfg(any(target_os = "openbsd", target_os = "emibsd"))]
+     unsafe fn get_stack_start() -> Option<*mut libc::c_void> {
+         let mut current_stack: libc::stack_t = crate::mem::zeroed();
+         assert_eq!(libc::pthread_stackseg_np(libc::pthread_self(), &mut current_stack), 0);
+@@ -419,7 +419,7 @@
+                 // The FreeBSD code cannot be checked on non-BSDs.
+                 #[cfg(target_os = "freebsd")]
+                 install_main_guard_freebsd(page_size)
+-            } else if cfg!(any(target_os = "netbsd", target_os = "openbsd")) {
++            } else if cfg!(any(target_os = "netbsd", any(target_os = "openbsd", target_os = "emibsd"))) {
+                 install_main_guard_bsds(page_size)
+             } else {
+                 install_main_guard_default(page_size)
+@@ -551,7 +551,7 @@
+ 
+     #[cfg(any(
+         target_os = "macos",
+-        target_os = "openbsd",
++        any(target_os = "openbsd", target_os = "emibsd"),
+         target_os = "solaris",
+         target_os = "illumos",
+     ))]
+@@ -642,7 +642,7 @@
+         target_os = "hurd",
+         target_os = "macos",
+         target_os = "netbsd",
+-        target_os = "openbsd",
++        any(target_os = "openbsd", target_os = "emibsd"),
+         target_os = "solaris",
+         target_os = "illumos",
+         target_os = "cygwin",
+--- a/library/std/src/sys/pal/unix/sync/mod.rs
++++ b/library/std/src/sys/pal/unix/sync/mod.rs
+@@ -3,7 +3,7 @@
+     target_os = "android",
+     all(target_os = "emscripten", target_feature = "atomics"),
+     target_os = "freebsd",
+-    target_os = "openbsd",
++    any(target_os = "openbsd", target_os = "emibsd"),
+     target_os = "dragonfly",
+     target_os = "fuchsia",
+ )))]
+--- a/library/std/src/sys/paths/unix.rs
++++ b/library/std/src/sys/paths/unix.rs
+@@ -229,7 +229,7 @@
+     sysctl().or_else(|_| procfs())
+ }
+ 
+-#[cfg(target_os = "openbsd")]
++#[cfg(any(target_os = "openbsd", target_os = "emibsd"))]
+ pub fn current_exe() -> io::Result<PathBuf> {
+     unsafe {
+         let mut mib = [libc::CTL_KERN, libc::KERN_PROC_ARGS, libc::getpid(), libc::KERN_PROC_ARGV];
+--- a/library/std/src/sys/pipe/unix.rs
++++ b/library/std/src/sys/pipe/unix.rs
+@@ -20,7 +20,7 @@
+             target_os = "illumos",
+             target_os = "linux",
+             target_os = "netbsd",
+-            target_os = "openbsd",
++            any(target_os = "openbsd", target_os = "emibsd"),
+             target_os = "cygwin",
+             target_os = "redox"
+         ) => {
+--- a/library/std/src/sys/process/unix/unix.rs
++++ b/library/std/src/sys/process/unix/unix.rs
+@@ -1219,7 +1219,7 @@
+         #[cfg(any(
+             target_os = "freebsd",
+             target_os = "netbsd",
+-            target_os = "openbsd",
++            any(target_os = "openbsd", target_os = "emibsd"),
+             target_os = "dragonfly",
+             target_os = "nto",
+             target_os = "qnx",
+@@ -1230,7 +1230,7 @@
+         #[cfg(any(
+             target_os = "freebsd",
+             target_os = "netbsd",
+-            target_os = "openbsd",
++            any(target_os = "openbsd", target_os = "emibsd"),
+             target_os = "dragonfly",
+             target_vendor = "apple",
+         ))]
+--- a/library/std/src/sys/random/mod.rs
++++ b/library/std/src/sys/random/mod.rs
+@@ -19,7 +19,7 @@
+         target_os = "haiku",
+         target_os = "illumos",
+         target_os = "netbsd",
+-        target_os = "openbsd",
++        any(target_os = "openbsd", target_os = "emibsd"),
+         target_os = "rtems",
+         target_os = "solaris",
+         target_os = "vita",
+--- a/library/std/src/sys/sync/condvar/mod.rs
++++ b/library/std/src/sys/sync/condvar/mod.rs
+@@ -4,7 +4,7 @@
+         target_os = "linux",
+         target_os = "android",
+         target_os = "freebsd",
+-        target_os = "openbsd",
++        any(target_os = "openbsd", target_os = "emibsd"),
+         target_os = "dragonfly",
+         target_os = "motor",
+         target_os = "fuchsia",
+--- a/library/std/src/sys/sync/mutex/mod.rs
++++ b/library/std/src/sys/sync/mutex/mod.rs
+@@ -4,7 +4,7 @@
+         target_os = "linux",
+         target_os = "android",
+         target_os = "freebsd",
+-        target_os = "openbsd",
++        any(target_os = "openbsd", target_os = "emibsd"),
+         target_os = "motor",
+         target_os = "dragonfly",
+         all(target_family = "wasm", target_feature = "atomics"),
+--- a/library/std/src/sys/sync/once/mod.rs
++++ b/library/std/src/sys/sync/once/mod.rs
+@@ -15,7 +15,7 @@
+         all(target_family = "wasm", target_feature = "atomics"),
+         target_os = "freebsd",
+         target_os = "motor",
+-        target_os = "openbsd",
++        any(target_os = "openbsd", target_os = "emibsd"),
+         target_os = "dragonfly",
+         target_os = "fuchsia",
+         target_os = "hermit",
+--- a/library/std/src/sys/sync/rwlock/mod.rs
++++ b/library/std/src/sys/sync/rwlock/mod.rs
+@@ -4,7 +4,7 @@
+         target_os = "linux",
+         target_os = "android",
+         target_os = "freebsd",
+-        target_os = "openbsd",
++        any(target_os = "openbsd", target_os = "emibsd"),
+         target_os = "dragonfly",
+         target_os = "fuchsia",
+         all(target_family = "wasm", target_feature = "atomics"),
+--- a/library/std/src/sys/sync/thread_parking/mod.rs
++++ b/library/std/src/sys/sync/thread_parking/mod.rs
+@@ -5,7 +5,7 @@
+         target_os = "android",
+         all(target_family = "wasm", target_feature = "atomics"),
+         target_os = "freebsd",
+-        target_os = "openbsd",
++        any(target_os = "openbsd", target_os = "emibsd"),
+         target_os = "dragonfly",
+         target_os = "fuchsia",
+         target_os = "motor",
+--- a/library/std/src/sys/thread/unix.rs
++++ b/library/std/src/sys/thread/unix.rs
+@@ -200,7 +200,7 @@
+         any(
+            target_os = "freebsd",
+            target_os = "dragonfly",
+-           target_os = "openbsd",
++           any(target_os = "openbsd", target_os = "emibsd"),
+            target_os = "netbsd",
+         ) => {
+             use crate::ptr;
+@@ -352,7 +352,7 @@
+             let id: libc::pid_t = unsafe { libc::gettid() };
+             Some(id as u64)
+         }
+-        target_os = "openbsd" => {
++        any(target_os = "openbsd", target_os = "emibsd") => {
+             // SAFETY: FFI call with no preconditions.
+             let id: libc::pid_t = unsafe { libc::getthrid() };
+             Some(id as u64)
+@@ -450,7 +450,7 @@
+     }
+ }
+ 
+-#[cfg(target_os = "openbsd")]
++#[cfg(any(target_os = "openbsd", target_os = "emibsd"))]
+ pub fn set_name(name: &CStr) {
+     unsafe {
+         libc::pthread_set_name_np(libc::pthread_self(), name.as_ptr());
+--- a/library/std/tests/sync/rwlock.rs
++++ b/library/std/tests/sync/rwlock.rs
+@@ -912,7 +912,7 @@
+             target_os = "linux",
+             target_os = "android",
+             target_os = "freebsd",
+-            target_os = "openbsd",
++            any(target_os = "openbsd", target_os = "emibsd"),
+             target_os = "dragonfly",
+             target_os = "fuchsia",
+             all(target_family = "wasm", target_feature = "atomics"),
+--- a/library/unwind/src/lib.rs
++++ b/library/unwind/src/lib.rs
+@@ -169,14 +169,19 @@
+ #[link(name = "gcc_s", cfg(not(target_feature = "crt-static")))]
+ unsafe extern "C" {}
+ 
+-#[cfg(all(target_os = "openbsd", target_arch = "sparc64"))]
++#[cfg(all(any(target_os = "openbsd", target_os = "emibsd"), target_arch = "sparc64"))]
+ #[link(name = "gcc")]
+ unsafe extern "C" {}
+ 
+-#[cfg(all(target_os = "openbsd", not(target_arch = "sparc64")))]
++#[cfg(all(any(target_os = "openbsd", target_os = "emibsd"), not(target_arch = "sparc64")))]
+ #[link(name = "c++abi")]
+ unsafe extern "C" {}
+ 
++// EmiBSD's libc++abi is built over LLVM's libunwind as a library of its own (DevTools, llvm/).
++#[cfg(target_os = "emibsd")]
++#[link(name = "unwind")]
++unsafe extern "C" {}
++
+ #[cfg(any(target_os = "solaris", target_os = "illumos"))]
+ #[link(name = "gcc_s")]
+ unsafe extern "C" {}

@@ -27,7 +27,7 @@ Date: YYYY-MM-DD · Status: proposed | accepted | superseded by D-MMMM
 | D-0001 | 2026-10-18 | accepted | arm64 first; amd64 waits for the kernel's N10 |
 | D-0002 | 2026-10-31 | accepted, two points open | DevTools is its own repository: the toolchains from the forks, released as artifacts |
 | D-0003 | 2026-10-31 | accepted | One LLVM, upstream's, from the fork; nothing of OpenBSD in DevTools |
-| D-0004 | 2026-10-31 | accepted; applied to LLVM 2026-10-31, Rust at T2 | EmiBSD's own target triple, `aarch64-emibsd-emibsd8.0`, carried as patches of ours |
+| D-0004 | 2026-10-31 | accepted; applied to LLVM and to Rust 2026-10-31 | EmiBSD's own target triple, `aarch64-emibsd-emibsd8.0`, carried as patches of ours |
 | D-0005 | 2026-10-31 | accepted | DevTools stands alone: its rules, policies and decisions live here |
 | D-0006 | 2026-10-31 | accepted | T2's scope: the kernel's target, the artifact's tools, the crates vendored by `just fetch`, the pins follow the release |
 
@@ -119,7 +119,7 @@ Sources: `EmiBSD/llvm-project` tag `llvmorg-22.1.6` = `fc4aad7b`; `EmiBSD/rust` 
 
 # D-0004: EmiBSD's own target triple, `aarch64-emibsd-emibsd8.0`, carried as patches of ours
 
-Date: 2026-10-31 · Status: accepted; applied to LLVM on 2026-10-31 (`llvm/patches/0001` to `0005`, the documents and the build glue); Rust's series is T2's work
+Date: 2026-10-31 · Status: accepted; applied to LLVM (`llvm/patches/0001` to `0005`) and to Rust (`rust/patches/0002` to `0004`) on 2026-10-31, with the documents and the build glue
 
 ## Context
 With D-0003 DevTools builds upstream LLVM and Rust and nothing of OpenBSD enters it. The

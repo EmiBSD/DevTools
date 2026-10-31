@@ -1,0 +1,167 @@
+libc: the EmiBSD target in the crate std links
+
+Why a patch: the libc crate std links (0.2.185, what the release's
+library/Cargo.lock fixes) selects its bindings by target_os, and EmiBSD's
+libc presents the same interface as OpenBSD's (D-0003): `target_os =
+"emibsd"` joins every condition that names "openbsd" in the crate's module
+selection (unix, bsd, netbsdlike, new), and its build script allows the
+value for check-cfg; the OpenBSD module asks for libexecinfo, which EmiBSD
+does not have, so not for emibsd. The crate comes from its EmiBSD mirror as .emibsd/libc
+(UPSTREAM.toml); rust/build/build.sh puts it, patched, in the place of the
+vendored libc-0.2.185, a vendored package with no checksum, so cargo builds
+it as the registry crate it replaces, with the same lint cap; library/
+Cargo.lock therefore drops the registry checksum of libc 0.2.185: the crate
+is no longer the registry's. Written by EmiBSD (ISC); carried by DevTools
+over the pinned tags, offered upstream when stable. Author: Emilio
+Navarrete Lineros, 2026-10-31.
+
+--- a/.emibsd/libc/src/unix/mod.rs
++++ b/.emibsd/libc/src/unix/mod.rs
+@@ -378,7 +378,7 @@
+         target_os = "macos",
+         target_os = "freebsd",
+         target_os = "android",
+-        target_os = "openbsd",
++        any(target_os = "openbsd", target_os = "emibsd"),
+         target_os = "cygwin",
+         target_os = "netbsd",
+     ))] {
+@@ -393,7 +393,7 @@
+         target_os = "macos",
+         target_os = "freebsd",
+         target_os = "android",
+-        target_os = "openbsd",
++        any(target_os = "openbsd", target_os = "emibsd"),
+         target_os = "netbsd",
+         target_os = "cygwin",
+     ))] {
+@@ -537,7 +537,7 @@
+         target_os = "watchos",
+         target_os = "visionos",
+         target_os = "android",
+-        target_os = "openbsd",
++        any(target_os = "openbsd", target_os = "emibsd"),
+         target_os = "nto",
+     ))] {
+         #[link(name = "c")]
+@@ -2146,7 +2146,7 @@
+         target_os = "emscripten",
+         target_os = "hurd",
+         target_os = "macos",
+-        target_os = "openbsd",
++        any(target_os = "openbsd", target_os = "emibsd"),
+         target_os = "l4re",
+     )))] {
+         extern "C" {
+@@ -2465,7 +2465,7 @@
+         target_os = "visionos",
+         target_os = "freebsd",
+         target_os = "dragonfly",
+-        target_os = "openbsd",
++        any(target_os = "openbsd", target_os = "emibsd"),
+         target_os = "netbsd"
+     ))] {
+         mod bsd;
+--- a/.emibsd/libc/src/unix/bsd/mod.rs
++++ b/.emibsd/libc/src/unix/bsd/mod.rs
+@@ -44,7 +44,7 @@
+             target_os = "watchos",
+             target_os = "visionos",
+             target_os = "netbsd",
+-            target_os = "openbsd"
++            any(target_os = "openbsd", target_os = "emibsd")
+         )))]
+         pub pw_fields: c_int,
+     }
+@@ -885,7 +885,7 @@
+     ))] {
+         mod apple;
+         pub use self::apple::*;
+-    } else if #[cfg(any(target_os = "openbsd", target_os = "netbsd"))] {
++    } else if #[cfg(any(any(target_os = "openbsd", target_os = "emibsd"), target_os = "netbsd"))] {
+         mod netbsdlike;
+         pub use self::netbsdlike::*;
+     } else if #[cfg(any(target_os = "freebsd", target_os = "dragonfly"))] {
+--- a/.emibsd/libc/src/unix/bsd/netbsdlike/mod.rs
++++ b/.emibsd/libc/src/unix/bsd/netbsdlike/mod.rs
+@@ -873,7 +873,7 @@
+     if #[cfg(target_os = "netbsd")] {
+         mod netbsd;
+         pub use self::netbsd::*;
+-    } else if #[cfg(target_os = "openbsd")] {
++    } else if #[cfg(any(target_os = "openbsd", target_os = "emibsd"))] {
+         mod openbsd;
+         pub use self::openbsd::*;
+     } else {
+--- a/.emibsd/libc/src/unix/bsd/netbsdlike/openbsd/mod.rs
++++ b/.emibsd/libc/src/unix/bsd/netbsdlike/openbsd/mod.rs
+@@ -2059,7 +2059,8 @@
+     pub fn elf_aux_info(aux: c_int, buf: *mut c_void, buflen: c_int) -> c_int;
+ }
+ 
+-#[link(name = "execinfo")]
++// EmiBSD has no libexecinfo: the declarations stay, the library is not asked for.
++#[cfg_attr(not(target_os = "emibsd"), link(name = "execinfo"))]
+ extern "C" {
+     pub fn backtrace(addrlist: *mut *mut c_void, len: size_t) -> size_t;
+     pub fn backtrace_symbols(addrlist: *const *mut c_void, len: size_t) -> *mut *mut c_char;
+--- a/.emibsd/libc/src/new/mod.rs
++++ b/.emibsd/libc/src/new/mod.rs
+@@ -99,7 +99,7 @@
+     } else if #[cfg(target_os = "nuttx")] {
+         mod nuttx;
+         pub(crate) use nuttx::*;
+-    } else if #[cfg(target_os = "openbsd")] {
++    } else if #[cfg(any(target_os = "openbsd", target_os = "emibsd"))] {
+         mod openbsd;
+         pub(crate) use openbsd::*;
+     } else if #[cfg(target_os = "qurt")] {
+@@ -206,7 +206,7 @@
+         pub use sys::types::*;
+         pub use utmp_::*;
+         pub use utmpx_::*;
+-    } else if #[cfg(target_os = "openbsd")] {
++    } else if #[cfg(any(target_os = "openbsd", target_os = "emibsd"))] {
+         pub use sys::ipc::*;
+     } else if #[cfg(target_os = "nto")] {
+         pub use net::bpf::*;
+--- a/.emibsd/libc/src/new/common/mod.rs
++++ b/.emibsd/libc/src/new/common/mod.rs
+@@ -14,7 +14,7 @@
+     target_os = "dragonfly",
+     target_os = "freebsd",
+     target_os = "netbsd",
+-    target_os = "openbsd",
++    any(target_os = "openbsd", target_os = "emibsd"),
+ ))]
+ pub(crate) mod bsd;
+ 
+@@ -29,7 +29,7 @@
+ #[cfg(any(target_os = "dragonfly", target_os = "freebsd"))]
+ pub(crate) mod freebsd_like;
+ 
+-#[cfg(any(target_os = "netbsd", target_os = "openbsd"))]
++#[cfg(any(target_os = "netbsd", any(target_os = "openbsd", target_os = "emibsd")))]
+ pub(crate) mod netbsd_like;
+ 
+ #[cfg(any(target_os = "illumos", target_os = "solaris"))]
+--- a/.emibsd/libc/build.rs
++++ b/.emibsd/libc/build.rs
+@@ -43,6 +43,7 @@
+         "target_os",
+         &[
+             "switch", "aix", "ohos", "hurd", "rtems", "visionos", "nuttx", "cygwin", "qurt",
++            "emibsd",
+         ],
+     ),
+     (
+--- a/library/Cargo.lock
++++ b/library/Cargo.lock
+@@ -148,7 +148,6 @@
+ name = "libc"
+ version = "0.2.185"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "52ff2c0fe9bc6cb6b14a0592c2ff4fa9ceb83eea9db979b0487cd054946a2b8f"
+ dependencies = [
+  "rustc-std-workspace-core",
+ ]

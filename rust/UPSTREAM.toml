@@ -8,14 +8,14 @@ path    = ["/*", "!/compiler/rustc_codegen_gcc/"]   # the whole tree but the GCC
                                           # excluded from the root workspace upstream, built only when rust.codegen-backends names gcc
 commit  = "48a229ceaefd4985c50990b14116b6d856af0985"   # the commit tag 1.98.1 points to (18ed059b is the annotated tag object)
 tag     = "1.98.1"                 # resolved to a commit at fetch, recorded in upstream/.pin
-version = "1.98.1+emibsd.1"        # the upstream's version, plus our patch level
+version = "1.98.1+emibsd.2"        # the upstream's version, plus our patch level (.1: the bootstrap patch; .2: the target, 0002 to 0004)
 license = ["Apache-2.0", "MIT"]   # the families; the texts stay in the source
 
 [security]
 cpe     = "rust-lang:rust"            # NVD product, for tools/cve.py
 
 [patches]
-series  = ["0001-bootstrap-vendor-what-is-there.patch"]   # patches/NNNN-*.patch, in order; each with its reason; DESIGN.md
+series  = ["0001-bootstrap-vendor-what-is-there.patch", "0002-rustc-target-emibsd.patch", "0003-std-emibsd.patch", "0004-libc-emibsd.patch"]   # in order; each with its reason; DESIGN.md
 
 # The rule of the pins: the stable release of Rust is the one pin chosen (`tag`); everything
 # else, the submodules and the crates, is pinned to what that release fixes (its .gitmodules,
@@ -35,7 +35,7 @@ origin  = "https://github.com/rust-lang/backtrace-rs"
 commit  = "d902726a1dcdc1e1c66f73d1162181b5423c645b"   # what 1.98.1 pins; no tag of backtrace-rs points at it
 
 [[submodules]]                            # not a git submodule of rust: the libc crate std links, taken from its mirror
-path    = ".emibsd/libc"                  # in place of crates.io's copy ([patch.crates-io] in library/Cargo.toml, patches/),
+path    = ".emibsd/libc"                  # in place of crates.io's copy (build.sh puts it, patched, in the vendored package's stead),
 repo    = "https://github.com/EmiBSD/rust-lang-libc" # so that EmiBSD's bindings are a patch series of ours over the pinned tag (D-0004)
 origin  = "https://github.com/rust-lang/libc"
 commit  = "71d5bfcc1bda05da1783666fc2cd7d9669c9c4c8"   # tag 0.2.185: the version library/Cargo.lock of 1.98.1 fixes for std

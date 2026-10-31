@@ -135,10 +135,15 @@ def pack(name):
     zstd.stdin.close()
     if zstd.wait() != 0:
         raise SystemExit("dist: zstd failed")
-    digest = hashlib.sha256(tarball.read_bytes()).hexdigest()
-    (out / f"{top}.tar.zst.sha256").write_text(f"{digest}  {tarball.name}\n")
-    print(f"dist: {tarball.relative_to(ROOT)}: {tarball.stat().st_size // (1 << 20)} MB, sha256 {digest[:16]}...")
+    print(f"dist: {tarball.relative_to(ROOT)}: {tarball.stat().st_size // (1 << 20)} MB")
     return top, tarball
+
+
+def seal(tarball):
+    """The .sha256, written only once the unpacked check passed: a failed artifact is not releasable."""
+    digest = hashlib.sha256(tarball.read_bytes()).hexdigest()
+    (tarball.parent / f"{tarball.name}.sha256").write_text(f"{digest}  {tarball.name}\n")
+    print(f"dist: {tarball.name}.sha256: {digest}")
 
 
 def check(name, top, tarball):
@@ -153,8 +158,10 @@ def check(name, top, tarball):
         args = [str(prefix), triple]
     else:
         host = run(str(prefix / "bin" / "rustc"), "-vV").split("host: ")[1].splitlines()[0]
-        kernel = re.search(r"^KERNEL_TARGET=(\S+)", (ROOT / "rust" / "build" / "build.sh").read_text(), re.M).group(1)
-        args = [str(prefix), host, kernel]
+        build_sh = (ROOT / "rust" / "build" / "build.sh").read_text()
+        kernel = re.search(r"^KERNEL_TARGET=(\S+)", build_sh, re.M).group(1)
+        target = re.search(r"^TARGET=(\S+)", build_sh, re.M).group(1)
+        args = [str(prefix), host, kernel, target, str(install_tree("llvm", host))]
     print(f"dist: check.sh over the unpacked {top}")
     subprocess.run(["sh", str(ROOT / name / "tests" / "check.sh"), *args], check=True)
 
@@ -163,7 +170,9 @@ def main(argv):
     if len(argv) != 1 or argv[0] not in ("llvm", "rust"):
         print(__doc__); return 2
     top, tarball = pack(argv[0])
+    (tarball.parent / f"{tarball.name}.sha256").unlink(missing_ok=True)
     check(argv[0], top, tarball)
+    seal(tarball)
     return 0
 
 
