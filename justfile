@@ -36,11 +36,16 @@ outdated:
 build name:
     python3 -I tools/upstream.py check {{name}} && sh {{name}}/build/build.sh
 
+# The licences of the crates a toolchain's build vendored, against docs/POLICIES.md (no network).
+crates name:
+    python3 -I tools/crates.py {{name}}
+
 # The CVE history of one toolchain from NVD (network; the user's OK).
 cve name:
     python3 -I tools/cve.py {{name}}
 
 # The checks that cost nothing: the pins parse, the mirrors hold them, the scripts compile.
 check: mirror-check
-    python3 -I -m py_compile tools/upstream.py tools/mirror.py tools/cve.py tools/watch.py
+    python3 -I -m py_compile tools/upstream.py tools/mirror.py tools/cve.py tools/watch.py tools/crates.py
+    python3 -I tools/crates.py rust
     sh -n llvm/build/build.sh rust/build/build.sh

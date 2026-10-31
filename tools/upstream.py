@@ -13,6 +13,7 @@ Stdlib only.
 """
 import hashlib
 import os
+import shutil
 import stat
 import subprocess
 import sys
@@ -34,6 +35,7 @@ def tomls(args):
                 doc = tomllib.load(fh)
             up = dict(doc["upstream"])
             up["submodules"] = doc.get("submodules", [])
+            up["vendor"] = doc.get("vendor")
             yield d, up
 
 
@@ -87,8 +89,40 @@ def fetch_git(key, ups):
         git(sub, "checkout", "--detach", sm["commit"])
         print(f"upstream: {key}: submodule {sm['path']} at {sm['commit'][:12]} from {sm['repo']}")
     (dest / ".pin").write_text(head + "\n")
+    vendor = ups[0].get("vendor")
+    if vendor:
+        vendor_crates(key, dest, head, vendor)
     readonly(dest)
     print(f"upstream: {key}: {head[:12]} ({len(paths)} paths) pinned")
+
+
+def vendor_crates(key, dest: Path, head: str, vendor: dict):
+    """`[vendor]` of UPSTREAM.toml: the crates.io dependencies the build needs, fetched once
+    here by `cargo vendor --locked` (the versions and checksums of the Cargo.lock files of the
+    pin; nothing resolves anew) into upstream/<dir>/, so that the build runs with no network.
+    `manifests` are the workspaces beyond the root one (-s), as upstream's own source tarball
+    vendors them. .pin records the source commit the vendor directory was made for."""
+    out = UPSTREAM / vendor["dir"]
+    pin = out / ".pin"
+    if pin.exists() and pin.read_text().strip() == head:
+        print(f"upstream: {key}: {out.relative_to(ROOT)} already vendored for {head[:12]}")
+        return
+    if out.exists():
+        readonly_off(out)
+        shutil.rmtree(out)
+    toolchain = tomllib.load(open(ROOT / "rust-toolchain.toml", "rb"))["toolchain"]["channel"]
+    cmd = ["cargo", "vendor", "--locked", "--versioned-dirs"]
+    for m in vendor.get("manifests", []):
+        cmd += ["-s", str(dest / m)]
+    cmd.append(str(out))
+    print(f"upstream: {key}: cargo vendor into {out.relative_to(ROOT)} (network: crates.io)")
+    # RUSTC_BOOTSTRAP=1 as bootstrap's own vendor step sets it (src/bootstrap/src/core/build_steps/vendor.rs):
+    # library/'s workspace declares cargo-features a stable cargo otherwise refuses to read.
+    subprocess.run(cmd, cwd=dest, check=True, stdout=subprocess.DEVNULL,
+                   env={**os.environ, "RUSTUP_TOOLCHAIN": toolchain, "RUSTC_BOOTSTRAP": "1"})
+    pin.write_text(head + "\n")
+    readonly(out)
+    print(f"upstream: {key}: {sum(1 for _ in out.iterdir()) - 1} crates vendored for {head[:12]}")
 
 
 def readonly_off(path: Path):

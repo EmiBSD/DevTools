@@ -9,7 +9,7 @@ usage: mirror.py check [<toolchain dir>...]    ls-remote both sides, compare (no
 Forks are mirrors: no commit of ours lands on them, only the upstream tags and commits the
 pins name (CLAUDE.md). A pinned commit that is not a tag cannot be checked on the origin by
 ls-remote; it is checked on the mirror by fetching that single commit into a temporary,
-blob-less clone when `--deep` is given, else reported as "commit, mirror only". Stdlib only.
+blob-less clone when `--deep` is given, else only the mirror's existence is checked. Stdlib only.
 """
 import subprocess
 import sys
@@ -77,8 +77,10 @@ def cmd_check(args):
                 ok = has_commit(mirror, commit)
                 print(f"{d.name}\t{name}\tcommit {commit[:12]}\t{'ok on mirror' if ok else 'MISSING on mirror'}")
             else:
-                ok = True
-                print(f"{d.name}\t{name}\tcommit {commit[:12]}\tcommit, mirror only (use --deep)")
+                # The commit itself needs a clone (--deep); without one, at least the mirror must exist.
+                ok = ls_remote(mirror, "HEAD") is not None
+                state = "mirror reachable, commit not verified (use --deep)" if ok else f"MISSING mirror {mirror}"
+                print(f"{d.name}\t{name}\tcommit {commit[:12]}\t{state}")
             bad += 0 if ok else 1
     return 1 if bad else 0
 
