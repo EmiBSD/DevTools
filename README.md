@@ -56,7 +56,7 @@ The whole picture is in [Governance](https://github.com/EmiBSD/Governance),
 
 | | Scope | Proof | State |
 |---|---|---|---|
-| T0 | the repository, the pins moved from `Userland/compiler/`, the tools, the mirror check | `just check` green | in progress |
+| T0 | the repository, the pins moved from `Userland/compiler/`, the tools, the mirror check | `just check` green | met 2026-10-31 |
 | T1 | OpenBSD's LLVM built here for arm64 on the macOS host; Kernel's `just comp` glue moved | Kernel's `smoke-cc` and `smoke-install` pass with this clang | |
 | T2 | rustc with `x.py`, macOS host, target `aarch64-unknown-openbsd`, Userland's sysroot | a static Rust hello runs under Kernel in QEMU | |
 | T3 | GitHub releases: one tarball per host with `.sha256`; consumers fetch by pin | Userland's `just toolchain` installs it | |
