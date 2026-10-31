@@ -1,0 +1,94 @@
+clang: the EmiBSD target, its predefined macros and C types
+
+Why a patch: clang must know the target's C ABI to compile for it. EmiBSDTargetInfo
+defines __EmiBSD__ (and nothing of any other system), `unix`, _REENTRANT with
+-pthread, __STDC_NO_THREADS__ (the libc has no <threads.h>), __FLOAT128__ on
+x86-64; the libc's types: wchar_t and wint_t int, int64_t and intmax_t long long
+(also on AArch64, where the generic target would say long), the profiling entry
+__mcount; malloc's 16-byte alignment. Registered for aarch64 and x86_64.
+Written by EmiBSD (ISC); carried by DevTools over the pinned tag. Author: Emilio
+Navarrete Lineros, 2026-10-31.
+
+--- a/clang/lib/Basic/Targets/OSTargets.h
++++ b/clang/lib/Basic/Targets/OSTargets.h
+@@ -524,6 +524,37 @@
+   }
+ };
+ 
++// EmiBSD Target
++template <typename Target>
++class LLVM_LIBRARY_VISIBILITY EmiBSDTargetInfo : public OSTargetInfo<Target> {
++protected:
++  void getOSDefines(const LangOptions &Opts, const llvm::Triple &Triple,
++                    MacroBuilder &Builder) const override {
++    Builder.defineMacro("__EmiBSD__");
++    DefineStd(Builder, "unix", Opts);
++    if (Opts.POSIXThreads)
++      Builder.defineMacro("_REENTRANT");
++    if (this->HasFloat128)
++      Builder.defineMacro("__FLOAT128__");
++    // The libc has no <threads.h>.
++    if (Opts.C11)
++      Builder.defineMacro("__STDC_NO_THREADS__");
++  }
++
++public:
++  EmiBSDTargetInfo(const llvm::Triple &Triple, const TargetOptions &Opts)
++      : OSTargetInfo<Target>(Triple, Opts) {
++    // The libc's types: wchar_t and wint_t are int, int64_t and intmax_t are
++    // long long, the profiling entry is __mcount.
++    this->WCharType = this->WIntType = this->SignedInt;
++    this->IntMaxType = TargetInfo::SignedLongLong;
++    this->Int64Type = TargetInfo::SignedLongLong;
++    this->MCountName = "__mcount";
++    if (Triple.getArch() == llvm::Triple::x86_64)
++      this->HasFloat128 = true;
++  }
++};
++
+ // PS3 PPU Target
+ template <typename Target>
+ class LLVM_LIBRARY_VISIBILITY PS3PPUTargetInfo : public OSTargetInfo<Target> {
+--- a/clang/lib/Basic/Targets.cpp
++++ b/clang/lib/Basic/Targets.cpp
+@@ -172,6 +172,9 @@
+     case llvm::Triple::OpenBSD:
+       return std::make_unique<OpenBSDTargetInfo<AArch64leTargetInfo>>(Triple,
+                                                                       Opts);
++    case llvm::Triple::EmiBSD:
++      return std::make_unique<EmiBSDTargetInfo<AArch64leTargetInfo>>(Triple,
++                                                                     Opts);
+     case llvm::Triple::Hurd:
+       return std::make_unique<HurdTargetInfo<AArch64leTargetInfo>>(Triple,
+                                                                    Opts);
+@@ -623,6 +626,8 @@
+       return std::make_unique<NetBSDTargetInfo<X86_64TargetInfo>>(Triple, Opts);
+     case llvm::Triple::OpenBSD:
+       return std::make_unique<OpenBSDX86_64TargetInfo>(Triple, Opts);
++    case llvm::Triple::EmiBSD:
++      return std::make_unique<EmiBSDTargetInfo<X86_64TargetInfo>>(Triple, Opts);
+     case llvm::Triple::FreeBSD:
+       return std::make_unique<FreeBSDTargetInfo<X86_64TargetInfo>>(Triple,
+                                                                    Opts);
+--- a/clang/lib/Basic/TargetInfo.cpp
++++ b/clang/lib/Basic/TargetInfo.cpp
+@@ -111,7 +111,7 @@
+   if (T.isGNUEnvironment() || T.isWindowsMSVCEnvironment() || T.isAndroid() ||
+       T.isOHOSFamily())
+     NewAlign = Triple.isArch64Bit() ? 128 : Triple.isArch32Bit() ? 64 : 0;
+-  else if (T.isOSDarwin() || T.isOSOpenBSD())
++  else if (T.isOSDarwin() || T.isOSOpenBSD() || T.isOSEmiBSD())
+     NewAlign = 128;
+   else
+     NewAlign = 0; // Infer from basic type alignment.
+--- a/clang/lib/Basic/Targets/AArch64.cpp
++++ b/clang/lib/Basic/Targets/AArch64.cpp
+@@ -128,7 +128,7 @@
+ AArch64TargetInfo::AArch64TargetInfo(const llvm::Triple &Triple,
+                                      const TargetOptions &Opts)
+     : TargetInfo(Triple), ABI("aapcs") {
+-  if (getTriple().isOSOpenBSD()) {
++  if (getTriple().isOSOpenBSD() || getTriple().isOSEmiBSD()) {
+     Int64Type = SignedLongLong;
+     IntMaxType = SignedLongLong;
+   } else {

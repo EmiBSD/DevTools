@@ -1,5 +1,5 @@
 # The pin of an imported toolchain. tools/upstream.py fetches and verifies it.
-# One LLVM (Governance G-0015, 2026-10-31): upstream LLVM at its release tag, from the fork,
+# One LLVM (decision D-0003, 2026-10-31): upstream LLVM at its release tag, from the fork,
 # as upstream ships it. Nothing of OpenBSD enters this repository: no code, no patches, no
 # build glue. This LLVM compiles the C and C++ of the system and is the backend rustc builds
 # against (rust/UPSTREAM.toml).
@@ -19,7 +19,7 @@ license = ["Apache-2.0 WITH LLVM-exception"]              # the families; the te
 cpe     = "llvm:llvm"            # NVD product, for tools/cve.py
 
 [patches]
-series  = []                     # none: upstream as is. A patch here would be EmiBSD's own, by the user's decision.
+series  = ["0001-llvm-target-emibsd.patch", "0002-clang-target-emibsd.patch", "0003-clang-driver-emibsd.patch", "0004-runtimes-emibsd.patch"]   # the EmiBSD target, written by us; each file says why; DESIGN.md
 
 [watch]                                   # tools/watch.py: where a newer release is announced; it reports, never bumps
 source  = "github-releases"               # llvm/llvm-project's releases (tag_name against `version` before "+")

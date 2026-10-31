@@ -1,0 +1,476 @@
+clang: the EmiBSD toolchain driver
+
+Why a patch: the driver must know how the system links and what it defaults to.
+ToolChains/EmiBSD.{h,cpp} (new, ISC) are the toolchain: PIE by default, rcrt0.o
+for a static PIE, gcrt0.o for -pg, crtbegin/crtend from the sysroot's /usr/lib,
+the entry __start, --eh-frame-hdr, /usr/libexec/ld.so, lld, compiler-rt's
+builtins before and after -lc, libc++ with libc++abi and libunwind, the strong
+stack protector, asynchronous unwind tables, /usr/include and /usr/include/c++/v1
+of the sysroot and nothing else. The tables of the shared driver code learn the
+OS: toolchain selection, the OS library name `emibsd`, no GCC include tree, PIE
+level 1 (-fpie), no -lrt and no -ldl (the libc has both), -p allowed, and the
+hardening defaults the system's libraries are built with: on AArch64 branch
+target enforcement and return address signing, on x86-64 IBT.
+Written by EmiBSD (ISC); carried by DevTools over the pinned tag. Author: Emilio
+Navarrete Lineros, 2026-10-31.
+
+--- a/clang/lib/Driver/CMakeLists.txt
++++ b/clang/lib/Driver/CMakeLists.txt
+@@ -54,6 +54,7 @@
+   ToolChains/Cygwin.cpp
+   ToolChains/Darwin.cpp
+   ToolChains/DragonFly.cpp
++  ToolChains/EmiBSD.cpp
+   ToolChains/Flang.cpp
+   ToolChains/FreeBSD.cpp
+   ToolChains/Fuchsia.cpp
+--- a/clang/lib/Driver/Driver.cpp
++++ b/clang/lib/Driver/Driver.cpp
+@@ -20,6 +20,7 @@
+ #include "ToolChains/Cygwin.h"
+ #include "ToolChains/Darwin.h"
+ #include "ToolChains/DragonFly.h"
++#include "ToolChains/EmiBSD.h"
+ #include "ToolChains/FreeBSD.h"
+ #include "ToolChains/Fuchsia.h"
+ #include "ToolChains/Gnu.h"
+@@ -6844,6 +6845,9 @@
+     case llvm::Triple::OpenBSD:
+       TC = std::make_unique<toolchains::OpenBSD>(*this, Target, Args);
+       break;
++    case llvm::Triple::EmiBSD:
++      TC = std::make_unique<toolchains::EmiBSD>(*this, Target, Args);
++      break;
+     case llvm::Triple::NetBSD:
+       TC = std::make_unique<toolchains::NetBSD>(*this, Target, Args);
+       break;
+--- a/clang/lib/Driver/ToolChain.cpp
++++ b/clang/lib/Driver/ToolChain.cpp
+@@ -713,6 +713,8 @@
+     return "netbsd";
+   case llvm::Triple::OpenBSD:
+     return "openbsd";
++  case llvm::Triple::EmiBSD:
++    return "emibsd";
+   case llvm::Triple::Solaris:
+     return "sunos";
+   case llvm::Triple::AIX:
+--- a/clang/lib/Driver/ToolChains/Clang.cpp
++++ b/clang/lib/Driver/ToolChains/Clang.cpp
+@@ -1379,7 +1379,7 @@
+                                        options::OPT_mbranch_protection_EQ)
+                      : Args.getLastArg(options::OPT_mbranch_protection_EQ);
+   if (!A) {
+-    if (Triple.isOSOpenBSD() && isAArch64) {
++    if ((Triple.isOSOpenBSD() || Triple.isOSEmiBSD()) && isAArch64) {
+       CmdArgs.push_back("-msign-return-address=non-leaf");
+       CmdArgs.push_back("-msign-return-address-key=a_key");
+       CmdArgs.push_back("-mbranch-target-enforce");
+@@ -1401,7 +1401,7 @@
+       D.Diag(diag::err_drv_unsupported_option_argument)
+           << A->getSpelling() << Scope;
+     Key = "a_key";
+-    IndirectBranches = Triple.isOSOpenBSD() && isAArch64;
++    IndirectBranches = (Triple.isOSOpenBSD() || Triple.isOSEmiBSD()) && isAArch64;
+     BranchProtectionPAuthLR = false;
+     GuardedControlStack = false;
+   } else {
+@@ -6845,7 +6845,8 @@
+     }
+   }
+   if (Arg *A = Args.getLastArgNoClaim(options::OPT_p)) {
+-    if (!(TC.getTriple().isOSAIX() || TC.getTriple().isOSOpenBSD())) {
++    if (!(TC.getTriple().isOSAIX() || TC.getTriple().isOSOpenBSD() ||
++          TC.getTriple().isOSEmiBSD())) {
+       D.Diag(diag::err_drv_unsupported_opt_for_target)
+           << A->getAsString(Args) << TripleStr;
+     }
+@@ -7008,7 +7009,8 @@
+     if (Arg *SA = Args.getLastArg(options::OPT_mcf_branch_label_scheme_EQ))
+       CmdArgs.push_back(Args.MakeArgString(Twine("-mcf-branch-label-scheme=") +
+                                            SA->getValue()));
+-  } else if (Triple.isOSOpenBSD() && Triple.getArch() == llvm::Triple::x86_64) {
++  } else if ((Triple.isOSOpenBSD() || Triple.isOSEmiBSD()) &&
++             Triple.getArch() == llvm::Triple::x86_64) {
+     // Emit IBT endbr64 instructions by default
+     CmdArgs.push_back("-fcf-protection=branch");
+     // jump-table can generate indirect jumps, which are not permitted
+--- a/clang/lib/Driver/ToolChains/CommonArgs.cpp
++++ b/clang/lib/Driver/ToolChains/CommonArgs.cpp
+@@ -1553,14 +1553,15 @@
+   if (TC.getTriple().getOS() != llvm::Triple::RTEMS &&
+       !TC.getTriple().isAndroid() && !TC.getTriple().isOHOSFamily()) {
+     CmdArgs.push_back("-lpthread");
+-    if (!TC.getTriple().isOSOpenBSD() && !TC.getTriple().isOSHaiku())
++    if (!TC.getTriple().isOSOpenBSD() && !TC.getTriple().isOSEmiBSD() &&
++        !TC.getTriple().isOSHaiku())
+       CmdArgs.push_back("-lrt");
+   }
+   CmdArgs.push_back("-lm");
+   // There's no libdl on all OSes.
+   if (!TC.getTriple().isOSFreeBSD() && !TC.getTriple().isOSNetBSD() &&
+-      !TC.getTriple().isOSOpenBSD() && !TC.getTriple().isOSDragonFly() &&
+-      !TC.getTriple().isOSHaiku() &&
++      !TC.getTriple().isOSOpenBSD() && !TC.getTriple().isOSEmiBSD() &&
++      !TC.getTriple().isOSDragonFly() && !TC.getTriple().isOSHaiku() &&
+       TC.getTriple().getOS() != llvm::Triple::RTEMS)
+     CmdArgs.push_back("-ldl");
+   // Required for backtrace on some OSes
+@@ -2001,8 +2002,8 @@
+   if (Triple.isOHOSFamily() && Triple.getArch() == llvm::Triple::aarch64)
+     PIC = true;
+ 
+-  // OpenBSD-specific defaults for PIE
+-  if (Triple.isOSOpenBSD()) {
++  // OpenBSD-specific defaults for PIE, which EmiBSD shares
++  if (Triple.isOSOpenBSD() || Triple.isOSEmiBSD()) {
+     switch (ToolChain.getArch()) {
+     case llvm::Triple::arm:
+     case llvm::Triple::aarch64:
+--- a/clang/lib/Lex/InitHeaderSearch.cpp
++++ b/clang/lib/Lex/InitHeaderSearch.cpp
+@@ -214,6 +214,7 @@
+   case llvm::Triple::AIX:
+   case llvm::Triple::DragonFly:
+   case llvm::Triple::ELFIAMCU:
++  case llvm::Triple::EmiBSD:
+   case llvm::Triple::Emscripten:
+   case llvm::Triple::FreeBSD:
+   case llvm::Triple::Fuchsia:
+--- a/clang/lib/Driver/ToolChains/EmiBSD.h
++++ b/clang/lib/Driver/ToolChains/EmiBSD.h
+@@ -0,0 +1,119 @@
++//===--- EmiBSD.h - EmiBSD ToolChain Implementations ------------*- C++ -*-===//
++//
++// Copyright (c) 2026 Emilio Navarrete Lineros <enavarre@outlook.com>
++//
++// Permission to use, copy, modify, and distribute this software for any
++// purpose with or without fee is hereby granted, provided that the above
++// copyright notice and this permission notice appear in all copies.
++//
++// THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
++// WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
++// MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
++// ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
++// WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
++// ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
++// OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
++//
++// Part of EmiBSD's DevTools, carried as a patch over the LLVM Project
++// (Apache License v2.0 with LLVM Exceptions); see llvm/patches/ there.
++//
++//===----------------------------------------------------------------------===//
++//
++// The EmiBSD toolchain: what the driver must know of the system to compile and
++// link for it. The system's ABI, as its kernel and libc present it: PIE
++// executables by default, static PIE through rcrt0.o, the run-time link-editor
++// at /usr/libexec/ld.so, the entry point __start, crtbegin/crtend from the
++// sysroot's /usr/lib, compiler-rt's builtins, libc++ with libc++abi over
++// libunwind, the stack protector on by default (strong), and lld as the
++// linker.
++//
++//===----------------------------------------------------------------------===//
++
++#ifndef LLVM_CLANG_LIB_DRIVER_TOOLCHAINS_EMIBSD_H
++#define LLVM_CLANG_LIB_DRIVER_TOOLCHAINS_EMIBSD_H
++
++#include "Gnu.h"
++#include "clang/Basic/LangOptions.h"
++#include "clang/Driver/Tool.h"
++#include "clang/Driver/ToolChain.h"
++
++namespace clang {
++namespace driver {
++namespace tools {
++
++namespace emibsd {
++/// The link step: the linker is called directly with the system's crt files,
++/// libraries and defaults.
++class LLVM_LIBRARY_VISIBILITY Linker final : public Tool {
++public:
++  Linker(const ToolChain &TC) : Tool("emibsd::Linker", "linker", TC) {}
++
++  bool hasIntegratedCPP() const override { return false; }
++  bool isLinkJob() const override { return true; }
++
++  void ConstructJob(Compilation &C, const JobAction &JA,
++                    const InputInfo &Output, const InputInfoList &Inputs,
++                    const llvm::opt::ArgList &TCArgs,
++                    const char *LinkingOutput) const override;
++};
++} // end namespace emibsd
++} // end namespace tools
++
++namespace toolchains {
++
++class LLVM_LIBRARY_VISIBILITY EmiBSD : public Generic_ELF {
++public:
++  EmiBSD(const Driver &D, const llvm::Triple &Triple,
++         const llvm::opt::ArgList &Args);
++
++  bool HasNativeLLVMSupport() const override { return true; }
++
++  bool IsMathErrnoDefault() const override { return false; }
++  bool IsObjCNonFragileABIDefault() const override { return true; }
++  bool isPIEDefault(const llvm::opt::ArgList &Args) const override {
++    return true;
++  }
++
++  RuntimeLibType GetDefaultRuntimeLibType() const override {
++    return ToolChain::RLT_CompilerRT;
++  }
++  CXXStdlibType GetDefaultCXXStdlibType() const override {
++    return ToolChain::CST_Libcxx;
++  }
++  UnwindLibType GetDefaultUnwindLibType() const override {
++    return ToolChain::UNW_CompilerRT;
++  }
++  const char *getDefaultLinker() const override { return "ld.lld"; }
++
++  void
++  AddClangSystemIncludeArgs(const llvm::opt::ArgList &DriverArgs,
++                            llvm::opt::ArgStringList &CC1Args) const override;
++  void addLibCxxIncludePaths(const llvm::opt::ArgList &DriverArgs,
++                             llvm::opt::ArgStringList &CC1Args) const override;
++  void AddCXXStdlibLibArgs(const llvm::opt::ArgList &Args,
++                           llvm::opt::ArgStringList &CmdArgs) const override;
++
++  bool IsAArch64OutlineAtomicsDefault(
++      const llvm::opt::ArgList &Args) const override {
++    return true;
++  }
++
++  UnwindTableLevel
++  getDefaultUnwindTableLevel(const llvm::opt::ArgList &Args) const override {
++    return UnwindTableLevel::Asynchronous;
++  }
++
++  LangOptions::StackProtectorMode
++  GetDefaultStackProtectorLevel(bool KernelOrKext) const override {
++    return LangOptions::SSPStrong;
++  }
++
++protected:
++  Tool *buildLinker() const override;
++};
++
++} // end namespace toolchains
++} // end namespace driver
++} // end namespace clang
++
++#endif // LLVM_CLANG_LIB_DRIVER_TOOLCHAINS_EMIBSD_H
+--- a/clang/lib/Driver/ToolChains/EmiBSD.cpp
++++ b/clang/lib/Driver/ToolChains/EmiBSD.cpp
+@@ -0,0 +1,212 @@
++//===--- EmiBSD.cpp - EmiBSD ToolChain Implementations ----------*- C++ -*-===//
++//
++// Copyright (c) 2026 Emilio Navarrete Lineros <enavarre@outlook.com>
++//
++// Permission to use, copy, modify, and distribute this software for any
++// purpose with or without fee is hereby granted, provided that the above
++// copyright notice and this permission notice appear in all copies.
++//
++// THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
++// WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
++// MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
++// ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
++// WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
++// ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
++// OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
++//
++// Part of EmiBSD's DevTools, carried as a patch over the LLVM Project
++// (Apache License v2.0 with LLVM Exceptions); see llvm/patches/ there.
++//
++//===----------------------------------------------------------------------===//
++
++#include "EmiBSD.h"
++#include "CommonArgs.h"
++#include "clang/Driver/Compilation.h"
++#include "clang/Driver/Driver.h"
++#include "clang/Driver/Options.h"
++#include "clang/Driver/SanitizerArgs.h"
++#include "llvm/Option/ArgList.h"
++
++using namespace clang::driver;
++using namespace clang::driver::tools;
++using namespace clang::driver::toolchains;
++using namespace clang;
++using namespace llvm::opt;
++
++void emibsd::Linker::ConstructJob(Compilation &C, const JobAction &JA,
++                                  const InputInfo &Output,
++                                  const InputInfoList &Inputs,
++                                  const ArgList &Args,
++                                  const char *LinkingOutput) const {
++  const auto &ToolChain = static_cast<const EmiBSD &>(getToolChain());
++  const Driver &D = ToolChain.getDriver();
++  const bool Static = Args.hasArg(options::OPT_static);
++  const bool Shared = Args.hasArg(options::OPT_shared);
++  const bool Profiling = Args.hasArg(options::OPT_pg);
++  const bool Pie = Args.hasArg(options::OPT_pie);
++  const bool Nopie = Args.hasArg(options::OPT_no_pie, options::OPT_nopie);
++  const bool Relocatable = Args.hasArg(options::OPT_r);
++  ArgStringList CmdArgs;
++
++  // Options that have no meaning at link time but are passed along in
++  // "clang -g foo.o -o foo" and the like.
++  Args.ClaimAllArgs(options::OPT_g_Group);
++  Args.ClaimAllArgs(options::OPT_emit_llvm);
++  Args.ClaimAllArgs(options::OPT_w);
++
++  if (!D.SysRoot.empty())
++    CmdArgs.push_back(Args.MakeArgString("--sysroot=" + D.SysRoot));
++
++  // The crt0 of the system enters at __start.
++  if (!Args.hasArg(options::OPT_nostdlib) && !Shared && !Relocatable) {
++    CmdArgs.push_back("-e");
++    CmdArgs.push_back("__start");
++  }
++
++  // libunwind finds the frames through the eh_frame header.
++  CmdArgs.push_back("--eh-frame-hdr");
++  if (Static) {
++    CmdArgs.push_back("-Bstatic");
++  } else {
++    if (Args.hasArg(options::OPT_rdynamic))
++      CmdArgs.push_back("-export-dynamic");
++    if (Shared) {
++      CmdArgs.push_back("-shared");
++    } else if (!Relocatable) {
++      CmdArgs.push_back("-dynamic-linker");
++      CmdArgs.push_back("/usr/libexec/ld.so");
++    }
++  }
++
++  if (Pie)
++    CmdArgs.push_back("-pie");
++  if (Nopie || Profiling)
++    CmdArgs.push_back("-nopie");
++
++  assert((Output.isFilename() || Output.isNothing()) && "Invalid output.");
++  if (Output.isFilename()) {
++    CmdArgs.push_back("-o");
++    CmdArgs.push_back(Output.getFilename());
++  }
++
++  // The system's start files, from the sysroot's /usr/lib: crt0.o for a
++  // dynamic executable, rcrt0.o for a static PIE (it relocates itself),
++  // gcrt0.o for profiling; crtbegin.o, or crtbeginS.o for a shared object.
++  if (!Args.hasArg(options::OPT_nostdlib, options::OPT_nostartfiles,
++                   options::OPT_r)) {
++    const char *crt0 = nullptr;
++    const char *crtbegin = nullptr;
++    if (!Shared) {
++      if (Profiling)
++        crt0 = "gcrt0.o";
++      else if (Static && !Nopie)
++        crt0 = "rcrt0.o";
++      else
++        crt0 = "crt0.o";
++      crtbegin = "crtbegin.o";
++    } else {
++      crtbegin = "crtbeginS.o";
++    }
++    if (crt0)
++      CmdArgs.push_back(Args.MakeArgString(ToolChain.GetFilePath(crt0)));
++    CmdArgs.push_back(Args.MakeArgString(ToolChain.GetFilePath(crtbegin)));
++  }
++
++  Args.AddAllArgs(CmdArgs, options::OPT_L);
++  ToolChain.AddFilePathLibArgs(Args, CmdArgs);
++  Args.addAllArgs(CmdArgs,
++                  {options::OPT_T_Group, options::OPT_s, options::OPT_t});
++
++  if (D.isUsingLTO())
++    addLTOOptions(ToolChain, Args, CmdArgs, Output, Inputs,
++                  D.getLTOMode() == LTOK_Thin);
++
++  bool NeedsSanitizerDeps = addSanitizerRuntimes(ToolChain, Args, CmdArgs);
++  AddLinkerInputs(ToolChain, Inputs, Args, CmdArgs, JA);
++
++  if (!Args.hasArg(options::OPT_nostdlib, options::OPT_nodefaultlibs,
++                   options::OPT_r)) {
++    if (D.CCCIsCXX()) {
++      if (ToolChain.ShouldLinkCXXStdlib(Args))
++        ToolChain.AddCXXStdlibLibArgs(Args, CmdArgs);
++      CmdArgs.push_back("-lm");
++    }
++
++    // Silence warnings when linking C code with a C++ '-stdlib' argument.
++    Args.ClaimAllArgs(options::OPT_stdlib_EQ);
++
++    if (NeedsSanitizerDeps) {
++      CmdArgs.push_back(ToolChain.getCompilerRTArgString(Args, "builtins"));
++      linkSanitizerRuntimeDeps(ToolChain, Args, CmdArgs);
++    }
++
++    // compiler-rt's builtins before and after libc: libc calls builtins, and
++    // the builtins call libc (the soft-float and 128-bit helpers).
++    AddRunTimeLibs(ToolChain, D, CmdArgs, Args);
++    if (Args.hasArg(options::OPT_pthread))
++      CmdArgs.push_back("-lpthread");
++    if (!Shared)
++      CmdArgs.push_back("-lc");
++    AddRunTimeLibs(ToolChain, D, CmdArgs, Args);
++  }
++
++  if (!Args.hasArg(options::OPT_nostdlib, options::OPT_nostartfiles,
++                   options::OPT_r)) {
++    const char *crtend = Shared ? "crtendS.o" : "crtend.o";
++    CmdArgs.push_back(Args.MakeArgString(ToolChain.GetFilePath(crtend)));
++  }
++
++  ToolChain.addProfileRTLibs(Args, CmdArgs);
++
++  const char *Exec = Args.MakeArgString(ToolChain.GetLinkerPath());
++  C.addCommand(std::make_unique<Command>(JA, *this,
++                                         ResponseFileSupport::AtFileCurCP(),
++                                         Exec, CmdArgs, Inputs, Output));
++}
++
++/// EmiBSD - the EmiBSD tool chain, which calls lld directly.
++
++EmiBSD::EmiBSD(const Driver &D, const llvm::Triple &Triple,
++               const ArgList &Args)
++    : Generic_ELF(D, Triple, Args) {
++  getFilePaths().push_back(concat(getDriver().SysRoot, "/usr/lib"));
++}
++
++void EmiBSD::AddClangSystemIncludeArgs(const llvm::opt::ArgList &DriverArgs,
++                                       llvm::opt::ArgStringList &CC1Args) const {
++  const Driver &D = getDriver();
++
++  if (DriverArgs.hasArg(options::OPT_nostdinc))
++    return;
++
++  if (!DriverArgs.hasArg(options::OPT_nobuiltininc)) {
++    SmallString<128> Dir(D.ResourceDir);
++    llvm::sys::path::append(Dir, "include");
++    addSystemInclude(DriverArgs, CC1Args, Dir.str());
++  }
++
++  if (DriverArgs.hasArg(options::OPT_nostdlibinc))
++    return;
++
++  // The system's headers: /usr/include of the sysroot, and nothing else.
++  addExternCSystemInclude(DriverArgs, CC1Args,
++                          concat(D.SysRoot, "/usr/include"));
++}
++
++void EmiBSD::addLibCxxIncludePaths(const llvm::opt::ArgList &DriverArgs,
++                                   llvm::opt::ArgStringList &CC1Args) const {
++  addSystemInclude(DriverArgs, CC1Args,
++                   concat(getDriver().SysRoot, "/usr/include/c++/v1"));
++}
++
++void EmiBSD::AddCXXStdlibLibArgs(const ArgList &Args,
++                                 ArgStringList &CmdArgs) const {
++  CmdArgs.push_back("-lc++");
++  if (Args.hasArg(options::OPT_fexperimental_library))
++    CmdArgs.push_back("-lc++experimental");
++  CmdArgs.push_back("-lc++abi");
++  CmdArgs.push_back("-lunwind");
++  CmdArgs.push_back("-lpthread");
++}
++
++Tool *EmiBSD::buildLinker() const { return new tools::emibsd::Linker(*this); }

@@ -2,19 +2,29 @@
 
 ## How it is built
 
-`build/build.sh` builds upstream LLVM with its own CMake and Ninja, in two stages, under
-`target/llvm/`:
+`build/build.sh` builds upstream LLVM with its own CMake and Ninja, under `target/llvm/`:
 
-1. **Stage 1, the host tools.** `cmake -S upstream/llvm-project/llvm -B target/llvm/host`
+0. **The source.** `upstream/llvm-project` at the pin, copied to `target/llvm/src` (APFS
+   clones) and the series of `UPSTREAM.toml` applied with `patch -p1`: the EmiBSD target
+   (below). The copy is remade when the pin or a patch changes; the upstream is never
+   touched.
+1. **Stage 1, the host tools.** `cmake -S target/llvm/src/llvm -B target/llvm/host`
    with `LLVM_ENABLE_PROJECTS=clang;lld`, `LLVM_TARGETS_TO_BUILD=AArch64;X86`,
-   `LLVM_DEFAULT_TARGET_TRIPLE=aarch64-unknown-openbsd`, `CMAKE_BUILD_TYPE=Release`,
+   `LLVM_DEFAULT_TARGET_TRIPLE=aarch64-unknown-emibsd`, `CMAKE_BUILD_TYPE=Release`,
    `LLVM_ENABLE_ASSERTIONS=OFF`, `LLVM_INSTALL_UTILS=ON`; installed into
    `target/llvm/<host>/`. This is what rustc's `llvm-config` points at.
-2. **Stage 2, the target runtimes.** `cmake -S upstream/llvm-project/runtimes -B
+2. **Stage 2, the target runtimes.** `cmake -S target/llvm/src/runtimes -B
    target/llvm/runtimes` with `LLVM_ENABLE_RUNTIMES=compiler-rt;libunwind;libcxxabi;libcxx`,
-   the stage-1 clang as the compiler, `CMAKE_SYSROOT=$EMIBSD_SYSROOT`, the triple
-   `aarch64-unknown-openbsd`, `LIBCXX_USE_COMPILER_RT=ON`, `LIBCXXABI_USE_LLVM_UNWINDER=ON`,
-   sanitizers, xray, fuzzer and profile off; installed into the stage-1 tree.
+   the stage-1 clang as the compiler, `CMAKE_SYSTEM_NAME=EmiBSD` (CMake learns the system
+   from `build/cmake/Platform/EmiBSD.cmake`), `CMAKE_SYSROOT=$EMIBSD_SYSROOT`, the triple
+   `aarch64-unknown-emibsd`, static libraries only, `LIBCXX_USE_COMPILER_RT=ON`,
+   `LIBCXXABI_USE_LLVM_UNWINDER=ON`, sanitizers, xray, fuzzer and profile off; installed into
+   the stage-1 tree under `lib/aarch64-unknown-emibsd/` and `include/aarch64-unknown-emibsd/`
+   (`LLVM_ENABLE_PER_TARGET_RUNTIME_DIR`), where the driver looks for them.
+3. **`tests/check.sh`** over the install tree: the compiler's identity and macros, the
+   runtimes in place, a C program linked static PIE and dynamic, a C++ program over libc++;
+   the ELF each must be (`DESIGN.md` of the kernel's loader, in a word: PIE, OS/ABI byte 12,
+   `PT_OPENBSD_RANDOMIZE`, BTI). That they run is the kernel repository's smoke, T1's proof.
 
 The install tree is the artifact (T3): `bin/`, `lib/`, `include/`, `lib/clang/22/`.
 
@@ -22,17 +32,45 @@ Flags that differ from upstream's defaults, with the reason:
 
 | Flag | Value | Why |
 |---|---|---|
-| `LLVM_DEFAULT_TARGET_TRIPLE` | `aarch64-unknown-openbsd` | the system's clang emits for the system by default |
-| `LLVM_TARGETS_TO_BUILD` | `AArch64;X86` | arm64 now, amd64 at Kernel's N10 (Governance G-0007); nothing else |
+| `LLVM_DEFAULT_TARGET_TRIPLE` | `aarch64-unknown-emibsd` | the system's clang emits for the system by default (D-0004) |
+| `CMAKE_SYSTEM_NAME` (stage 2) | `EmiBSD`, with `build/cmake/Platform/EmiBSD.cmake` | CMake must name the system the runtimes are cross-compiled for; it knows no EmiBSD, so DevTools describes it (an ELF Unix without libdl) |
+| `LLVM_ENABLE_PER_TARGET_RUNTIME_DIR` (stage 2) | `ON` | the runtimes land in `lib/<triple>/`, where clang's driver looks for a cross target |
+| `LIBCXX_ENABLE_SHARED`, `LIBCXXABI_ENABLE_SHARED`, `LIBUNWIND_ENABLE_SHARED` | `OFF` | the system links its C++ statically for now; shared runtimes are a decision for when the userland ships them |
+| `LLVM_TARGETS_TO_BUILD` | `AArch64;X86` | arm64 now, amd64 when it returns (decision D-0001); nothing else |
 | `COMPILER_RT_BUILD_*` | sanitizers, xray, fuzzer, profile off | only the builtins and the runtimes the system links |
 | `LLVM_ENABLE_ASSERTIONS` | `OFF` | a release compiler; assertions are for developing LLVM |
 
-Everything else is upstream's default. There is no patch.
+Everything else is upstream's default.
 
 ## Patches
 
-None. A patch here would be EmiBSD's own change to LLVM, the user's decision, kept in
-`patches/` with its reason and, if it lasts, as a commit on a branch of the fork.
+The series is the EmiBSD target (decision D-0004): operating-system support written by us,
+ISC, over the pinned tag, each file with its reason in its header. The fork stays a mirror:
+no commit of ours lands on it; the series is re-applied at every pin bump and offered
+upstream when it is stable.
+
+| Patch | What |
+|---|---|
+| `0001-llvm-target-emibsd` | `Triple::EmiBSD` (`emibsd`); what the ABI needs of code generation: emulated TLS (the run-time link-editor has no ELF TLS), the stack protector through the libc's `__guard_local` and `__stack_smash_handler`, the ELF OS/ABI byte 12 in objects (what the kernel and ld.so recognise, and what lld keys the `PT_OPENBSD_RANDOMIZE` segment on) |
+| `0002-clang-target-emibsd` | `EmiBSDTargetInfo`: `__EmiBSD__` and nothing of any other system, the libc's C types (`wchar_t` int, `int64_t` long long on AArch64 too), `__mcount`, malloc's 16-byte alignment; registered for aarch64 and x86_64 |
+| `0003-clang-driver-emibsd` | `ToolChains/EmiBSD.{h,cpp}` (new): the link line (`__start`, `rcrt0.o` for a static PIE, `crtbegin`/`crtend`, `/usr/libexec/ld.so`, lld, compiler-rt's builtins around `-lc`, libc++ with libc++abi and libunwind), PIE by default, the strong stack protector, `/usr/include` and `/usr/include/c++/v1` of the sysroot; the shared driver tables (toolchain selection, OS library name, no GCC tree, `-fpie`, no `-lrt`/`-ldl`, `-p`) and the hardening defaults below |
+| `0004-runtimes-emibsd` | compiler-rt, libc++ and libc++abi choose their platform code by macro: `__EmiBSD__` joins the conditions for the libc interfaces this libc has (`<machine/endian.h>`, `elf_aux_info`, `arc4random`, pthreads, the rune table, `futex(2)`, `clock_gettime`); libc++ as the default C++ library in compiler-rt's CMake |
+
+Defaults the driver turns on for the target, which change what the compiler emits, each a
+decision of this repository (D-0004) and reversible here:
+
+| Default | On | Why |
+|---|---|---|
+| `-fpie`, PIE executables, `rcrt0.o` with `-static` | aarch64, x86_64 | the kernel loads PIE and randomises its base; a static executable relocates itself |
+| `-mbranch-target-enforce`, `-msign-return-address=non-leaf` | aarch64 | the kernel enforces branch-target identification on user pages; the system's libraries are built with return-address signing |
+| `-fcf-protection=branch`, `-fno-jump-tables` | x86_64 (when amd64 returns) | indirect-branch tracking, as the system's libraries expect |
+| `-fstack-protector-strong` | all | the libc provides the guard and the handler; on by default as in the system |
+| `-funwind-tables` (asynchronous) | all | libunwind unwinds through C frames (exceptions, backtraces) |
+| `-fuse-ld=lld` | all | the one linker of the toolchain |
+
+Not turned on, though the system's own compiler once did: `-mstrict-align` on aarch64 (a
+performance policy, not an ABI need), `-mretguard` and `-fret-clean` (not in upstream LLVM;
+if the maintainer wants that hardening, it is a decision and a patch of ours, D-0004).
 
 ## Concurrency
 
@@ -41,11 +79,11 @@ As upstream has it; Ninja runs `COMP_JOBS` compiles at once.
 ## Threat model and security
 
 `tests/` proves the artifact: the versions the binaries print, a C hello compiled and linked
-static for the target, a C++ hello against libc++; under Kernel in QEMU, that both run
+static for the target, a C++ hello against libc++; under the EmiBSD kernel in QEMU, that both run
 (T1's proof). The CVE watch is `tools/cve.py llvm` over `llvm:llvm`.
 
 ## Dependencies
 
 The host's CMake, Ninja, Python 3 and a C++ compiler (Apple clang on the Mac); the sysroot
-for stage 2 (Userland's libc, crt and headers; until then the OpenBSD sets Kernel boots,
-given by path). No stage0: LLVM bootstraps from the host compiler.
+for stage 2 (the userland repository's libc, crt and headers; until then the base sets the
+kernel boots, given by path). No stage0: LLVM bootstraps from the host compiler.

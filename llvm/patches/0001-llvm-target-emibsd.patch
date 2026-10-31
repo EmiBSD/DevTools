@@ -1,0 +1,113 @@
+llvm: the EmiBSD operating system in the target triple
+
+Why a patch: LLVM knows nothing of EmiBSD, and DevTools' toolchains emit for
+aarch64-unknown-emibsd (x86_64-unknown-emibsd when amd64 returns). This adds the
+OS to the triple (`emibsd`, Triple::EmiBSD, isOSEmiBSD) and states what its ABI
+needs of code generation, which is the ABI its kernel and libc present:
+- emulated TLS by default: the run-time link-editor has no ELF TLS;
+- the stack protector through the libc's __guard_local and
+  __stack_smash_handler (RuntimeLibcalls.td's predicates, named for OpenBSD
+  upstream, hold for EmiBSD too: the libc ABI is the same);
+- the ELF OS/ABI byte 12 in objects: the value the kernel and ld.so recognise,
+  on which lld keys the PT_OPENBSD_RANDOMIZE, _MUTABLE and _SYSCALLS segments.
+Written by EmiBSD (ISC); carried by DevTools over the pinned tag, offered
+upstream when stable. Author: Emilio Navarrete Lineros, 2026-10-31.
+
+--- a/llvm/include/llvm/TargetParser/Triple.h
++++ b/llvm/include/llvm/TargetParser/Triple.h
+@@ -210,6 +210,7 @@
+ 
+     Darwin,
+     DragonFly,
++    EmiBSD,
+     FreeBSD,
+     Fuchsia,
+     IOS,
+@@ -655,6 +656,10 @@
+     return getOS() == Triple::OpenBSD;
+   }
+ 
++  bool isOSEmiBSD() const {
++    return getOS() == Triple::EmiBSD;
++  }
++
+   bool isOSFreeBSD() const {
+     return getOS() == Triple::FreeBSD;
+   }
+@@ -1209,7 +1214,7 @@
+   /// Note: Android API level 29 (10) introduced ELF TLS.
+   bool hasDefaultEmulatedTLS() const {
+     return (isAndroid() && isAndroidVersionLT(29)) || isOSOpenBSD() ||
+-           isWindowsCygwinEnvironment() || isOHOSFamily();
++           isOSEmiBSD() || isWindowsCygwinEnvironment() || isOHOSFamily();
+   }
+ 
+   /// True if the target uses TLSDESC by default.
+--- a/llvm/lib/TargetParser/Triple.cpp
++++ b/llvm/lib/TargetParser/Triple.cpp
+@@ -299,6 +299,7 @@
+   case CUDA: return "cuda";
+   case Darwin: return "darwin";
+   case DragonFly: return "dragonfly";
++  case EmiBSD: return "emibsd";
+   case DriverKit: return "driverkit";
+   case ELFIAMCU: return "elfiamcu";
+   case Emscripten: return "emscripten";
+@@ -710,6 +711,7 @@
+   return StringSwitch<Triple::OSType>(OSName)
+       .StartsWith("darwin", Triple::Darwin)
+       .StartsWith("dragonfly", Triple::DragonFly)
++      .StartsWith("emibsd", Triple::EmiBSD)
+       .StartsWith("freebsd", Triple::FreeBSD)
+       .StartsWith("fuchsia", Triple::Fuchsia)
+       .StartsWith("ios", Triple::IOS)
+--- a/llvm/include/llvm/IR/RuntimeLibcalls.td
++++ b/llvm/include/llvm/IR/RuntimeLibcalls.td
+@@ -17,8 +17,10 @@
+ 
+ /// Libcall Predicates
+ def isOSDarwin : RuntimeLibcallPredicate<"TT.isOSDarwin()">;
+-def isOSOpenBSD : RuntimeLibcallPredicate<"TT.isOSOpenBSD()">;
+-def isNotOSOpenBSD : RuntimeLibcallPredicate<"!TT.isOSOpenBSD()">;
++// EmiBSD shares the libc stack protector ABI of OpenBSD: the predicates named for
++// OpenBSD hold for both.
++def isOSOpenBSD : RuntimeLibcallPredicate<"TT.isOSOpenBSD() || TT.isOSEmiBSD()">;
++def isNotOSOpenBSD : RuntimeLibcallPredicate<"!TT.isOSOpenBSD() && !TT.isOSEmiBSD()">;
+ def isOSWindows : RuntimeLibcallPredicate<"TT.isOSWindows()">;
+ def isNotOSWindows : RuntimeLibcallPredicate<"!TT.isOSWindows()">;
+ def isNotOSLinux : RuntimeLibcallPredicate<[{!TT.isOSLinux()}]>;
+@@ -31,10 +33,10 @@
+   [{TT.isWindowsMSVCEnvironment()}]>;
+ 
+ def isNotOSLinuxAndNotOSOpenBSD : RuntimeLibcallPredicate<
+-  [{!TT.isOSLinux() && !TT.isOSOpenBSD()}]>;
++  [{!TT.isOSLinux() && !TT.isOSOpenBSD() && !TT.isOSEmiBSD()}]>;
+ 
+ def isNotOSAIXAndNotOSOpenBSD : RuntimeLibcallPredicate<
+-  [{!TT.isOSAIX() && !TT.isOSOpenBSD()}]>;
++  [{!TT.isOSAIX() && !TT.isOSOpenBSD() && !TT.isOSEmiBSD()}]>;
+ 
+ def isNotPS : RuntimeLibcallPredicate<
+   [{!TT.isPS()}]>;
+@@ -42,7 +44,7 @@
+ // OpenBSD uses __guard_local. AIX uses __ssp_canary_word, MSVC/Windows
+ // Itanium uses __security_cookie
+ def hasStackChkFail : RuntimeLibcallPredicate<
+-  [{ !TT.isOSOpenBSD() && !TT.isWindowsMSVCEnvironment() &&
++  [{ !TT.isOSOpenBSD() && !TT.isOSEmiBSD() && !TT.isWindowsMSVCEnvironment() &&
+      !TT.isWindowsItaniumEnvironment()}]>;
+ 
+ def isWindowsMSVCOrItaniumEnvironment : RuntimeLibcallPredicate<
+--- a/llvm/include/llvm/MC/MCELFObjectWriter.h
++++ b/llvm/include/llvm/MC/MCELFObjectWriter.h
+@@ -80,6 +80,10 @@
+         return ELF::ELFOSABI_SOLARIS;
+       case Triple::OpenBSD:
+         return ELF::ELFOSABI_OPENBSD;
++      case Triple::EmiBSD:
++        // EmiBSD keeps the ELF ABI its kernel and ld.so recognise by this byte
++        // (the PT_OPENBSD_* segments lld emits for it are keyed on it).
++        return ELF::ELFOSABI_OPENBSD;
+       default:
+         return ELF::ELFOSABI_NONE;
+     }
