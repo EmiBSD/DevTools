@@ -13,14 +13,21 @@
    `LLVM_DEFAULT_TARGET_TRIPLE=aarch64-unknown-emibsd`, `CMAKE_BUILD_TYPE=Release`,
    `LLVM_ENABLE_ASSERTIONS=OFF`, `LLVM_INSTALL_UTILS=ON`; installed into
    `target/llvm/<host>/`. This is what rustc's `llvm-config` points at.
-2. **Stage 2, the target runtimes.** `cmake -S target/llvm/src/runtimes -B
-   target/llvm/runtimes` with `LLVM_ENABLE_RUNTIMES=compiler-rt;libunwind;libcxxabi;libcxx`,
-   the stage-1 clang as the compiler, `CMAKE_SYSTEM_NAME=EmiBSD` (CMake learns the system
-   from `build/cmake/Platform/EmiBSD.cmake`), `CMAKE_SYSROOT=$EMIBSD_SYSROOT`, the triple
-   `aarch64-unknown-emibsd`, static libraries only, `LIBCXX_USE_COMPILER_RT=ON`,
-   `LIBCXXABI_USE_LLVM_UNWINDER=ON`, sanitizers, xray, fuzzer and profile off; installed into
-   the stage-1 tree under `lib/aarch64-unknown-emibsd/` and `include/aarch64-unknown-emibsd/`
-   (`LLVM_ENABLE_PER_TARGET_RUNTIME_DIR`), where the driver looks for them.
+2. **Stage 2, the target runtimes**, in the two passes upstream's own runtimes bootstrap
+   makes (`llvm/runtimes/CMakeLists.txt`), because CMake's compiler test links, and the link
+   needs the builtins that this stage produces. **2a**: `cmake -S
+   target/llvm/src/compiler-rt/lib/builtins -B target/llvm/builtins`, the stage-1 clang as
+   the compiler, `CMAKE_SYSTEM_NAME=EmiBSD` (CMake learns the system from
+   `build/cmake/Platform/EmiBSD.cmake`), `CMAKE_SYSROOT=$EMIBSD_SYSROOT`, the triple
+   `aarch64-unknown-emibsd`, `CMAKE_{C,CXX,ASM}_COMPILER_WORKS=ON` as upstream passes them,
+   `COMPILER_RT_DEFAULT_TARGET_ONLY=ON`; installed into the stage-1 tree under
+   `lib/clang/22/lib/aarch64-unknown-emibsd/`. **2b**: `cmake -S target/llvm/src/runtimes -B
+   target/llvm/runtimes` with `LLVM_ENABLE_RUNTIMES=libunwind;libcxxabi;libcxx`, the same
+   compiler, system, sysroot and triple, static libraries only, `LIBCXX_USE_COMPILER_RT=ON`,
+   `LIBCXXABI_USE_LLVM_UNWINDER=ON`; installed under `lib/aarch64-unknown-emibsd/` and
+   `include/aarch64-unknown-emibsd/` (`LLVM_ENABLE_PER_TARGET_RUNTIME_DIR`), where the driver
+   looks for them. No sanitizer, xray, fuzzer or profile runtime: only the builtins of
+   compiler-rt are built.
 3. **`tests/check.sh`** over the install tree: the compiler's identity and macros, the
    runtimes in place, a C program linked static PIE and dynamic, a C++ program over libc++;
    the ELF each must be (`DESIGN.md` of the kernel's loader, in a word: PIE, OS/ABI byte 12,
@@ -53,8 +60,9 @@ upstream when it is stable.
 |---|---|
 | `0001-llvm-target-emibsd` | `Triple::EmiBSD` (`emibsd`); what the ABI needs of code generation: emulated TLS (the run-time link-editor has no ELF TLS), the stack protector through the libc's `__guard_local` and `__stack_smash_handler`, the ELF OS/ABI byte 12 in objects (what the kernel and ld.so recognise, and what lld keys the `PT_OPENBSD_RANDOMIZE` segment on) |
 | `0002-clang-target-emibsd` | `EmiBSDTargetInfo`: `__EmiBSD__` and nothing of any other system, the libc's C types (`wchar_t` int, `int64_t` long long on AArch64 too), `__mcount`, malloc's 16-byte alignment; registered for aarch64 and x86_64 |
-| `0003-clang-driver-emibsd` | `ToolChains/EmiBSD.{h,cpp}` (new): the link line (`__start`, `rcrt0.o` for a static PIE, `crtbegin`/`crtend`, `/usr/libexec/ld.so`, lld, compiler-rt's builtins around `-lc`, libc++ with libc++abi and libunwind), PIE by default, the strong stack protector, `/usr/include` and `/usr/include/c++/v1` of the sysroot; the shared driver tables (toolchain selection, OS library name, no GCC tree, `-fpie`, no `-lrt`/`-ldl`, `-p`) and the hardening defaults below |
+| `0003-clang-driver-emibsd` | `ToolChains/EmiBSD.{h,cpp}` (new): the link line (`__start`, `rcrt0.o` for a static PIE, `crtbegin`/`crtend`, `/usr/libexec/ld.so`, lld, compiler-rt's builtins around `-lc`, libc++ with libc++abi and libunwind), PIE by default, the strong stack protector, `/usr/include` of the sysroot for C and, for C++, libc++'s headers where clang's generic search finds them (the toolchain's `include/<triple>/c++/v1` and `include/c++/v1`, else the sysroot's `/usr/include/c++/v1`); the shared driver tables (toolchain selection, OS library name, no GCC tree, `-fpie`, no `-lrt`/`-ldl`, `-p`) and the hardening defaults below |
 | `0004-runtimes-emibsd` | compiler-rt, libc++ and libc++abi choose their platform code by macro: `__EmiBSD__` joins the conditions for the libc interfaces this libc has (`<machine/endian.h>`, `elf_aux_info`, `arc4random`, pthreads, the rune table, `futex(2)`, `clock_gettime`); libc++ as the default C++ library in compiler-rt's CMake |
+| `0005-lld-versioned-shared-libs` | `-l<name>` resolves to `lib<name>.so.<major>.<minor>` of the highest version when no `lib<name>.so` exists, before `lib<name>.a`: the system's shared libraries carry only the versioned name its `ld.so` looks up, and the linker, not a link per library, knows it, on every host it runs on |
 
 Defaults the driver turns on for the target, which change what the compiler emits, each a
 decision of this repository (D-0004) and reversible here:

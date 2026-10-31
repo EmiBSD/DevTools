@@ -9,7 +9,8 @@ kind    = "git"
 repo    = "https://github.com/EmiBSD/llvm-project"       # the organisation's mirror, always
 origin  = "https://github.com/llvm/llvm-project"         # what the mirror is fed from
 path    = ["cmake", "third-party", "runtimes", "llvm", "clang", "lld",
-           "compiler-rt", "libunwind", "libcxxabi", "libcxx"]   # what the CMake build of build/build.sh reads
+           "compiler-rt", "libunwind", "libcxxabi", "libcxx",
+           "libc"]                                         # what the CMake build of build/build.sh reads; libc: only the headers libc++ shares with LLVM's libc (shared/, src/__support/)
 tag     = "llvmorg-22.1.6"                                # resolved to a commit at fetch, recorded in upstream/.pin
 commit  = "fc4aad7b5db3fff421df9a9637605b9ca5667881"       # the commit the tag points to (e1e54c54 is the annotated tag object)
 version = "22.1.6+emibsd.1"                               # the upstream's version, plus our patch level
@@ -19,7 +20,7 @@ license = ["Apache-2.0 WITH LLVM-exception"]              # the families; the te
 cpe     = "llvm:llvm"            # NVD product, for tools/cve.py
 
 [patches]
-series  = ["0001-llvm-target-emibsd.patch", "0002-clang-target-emibsd.patch", "0003-clang-driver-emibsd.patch", "0004-runtimes-emibsd.patch"]   # the EmiBSD target, written by us; each file says why; DESIGN.md
+series  = ["0001-llvm-target-emibsd.patch", "0002-clang-target-emibsd.patch", "0003-clang-driver-emibsd.patch", "0004-runtimes-emibsd.patch", "0005-lld-versioned-shared-libs.patch"]   # the EmiBSD target, written by us; each file says why; DESIGN.md
 
 [watch]                                   # tools/watch.py: where a newer release is announced; it reports, never bumps
 source  = "github-releases"               # llvm/llvm-project's releases (tag_name against `version` before "+")
