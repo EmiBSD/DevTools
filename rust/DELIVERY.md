@@ -6,7 +6,7 @@ the kernel's target; the system's target follows in slice 2), 2026-10-31.
 
 | | |
 |---|---|
-| Artifact | `rust-<version>-<host triple>.tar.zst` + `.sha256` |
+| Artifact | `rust-<version>-<host triple>.tar.zst` + `.sha256` (`just dist rust`): 105 MB for about 500 MB installed; a directory `rustup toolchain link` takes; checked unpacked elsewhere by `tests/check.sh` |
 | Host triples | aarch64-apple-darwin first (T1/T2); aarch64-emibsd-emibsd at T4 |
 | Targets | aarch64-emibsd-emibsd (D-0004; llvm-target aarch64-emibsd-emibsd8.0) |
 | In the comp set | |

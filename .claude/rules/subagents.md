@@ -29,7 +29,7 @@ follows.
   roles carry none: a stop in the middle leaves commits unmade.
 - **The guard hook on every writing role.** `.claude/hooks/agent-guard.sh` is the `PreToolUse`
   hook of every role that writes (the `hooks:` field of its frontmatter). It refuses before it
-  runs: `git push`, `git commit --amend`, a force of anything, any write or `cd` under
+  runs: `git push`, `gh release`, `git commit --amend`, a force of anything, any write or `cd` under
   `upstream/` or a `reference/` tree, `cargo install`, `rustup`, `brew`, `pip`, `npm`, and
   `curl` or `wget`. Nothing is installed and nothing is downloaded without the user's OK;
   `just fetch` is the one sanctioned download and runs from the main session. A refusal is a

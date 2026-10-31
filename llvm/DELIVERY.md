@@ -5,7 +5,7 @@ files of the `comp` set OS packages. Measured on the first build, 2026-10-31.
 
 | | |
 |---|---|
-| Artifact | `llvm-<version>-<host triple>.tar.zst` + `.sha256` |
+| Artifact | `llvm-<version>-<host triple>.tar.zst` + `.sha256` (`just dist llvm`): 517 MB for 2.2 GB installed, unstripped; checked unpacked elsewhere by `tests/check.sh` |
 | Host triples | aarch64-apple-darwin first (T1/T2); aarch64-emibsd-emibsd8.0 at T4 |
 | Targets | aarch64-emibsd-emibsd8.0 (D-0004); the X86 backend compiled, no x86_64 target until D-0001 lifts |
 | In the comp set | |

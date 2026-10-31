@@ -36,6 +36,14 @@ outdated:
 build name:
     python3 -I tools/upstream.py check {{name}} && sh {{name}}/build/build.sh
 
+# The artifact of a built toolchain: dist/<name>-<version>-<host>.tar.zst and .sha256, then checked unpacked elsewhere.
+dist name:
+    python3 -I tools/dist.py {{name}}
+
+# The GitHub release of a toolchain's artifact, from a tagged commit: the maintainer's, from the main session (it publishes).
+release name:
+    sh tools/release.sh {{name}}
+
 # The licences of the crates a toolchain's build vendored, against docs/POLICIES.md (no network).
 crates name:
     python3 -I tools/crates.py {{name}}
@@ -46,6 +54,6 @@ cve name:
 
 # The checks that cost nothing: the pins parse, the mirrors hold them, the scripts compile.
 check: mirror-check
-    python3 -I -m py_compile tools/upstream.py tools/mirror.py tools/cve.py tools/watch.py tools/crates.py
+    python3 -I -m py_compile tools/upstream.py tools/mirror.py tools/cve.py tools/watch.py tools/crates.py tools/dist.py
     python3 -I tools/crates.py rust
-    sh -n llvm/build/build.sh rust/build/build.sh
+    sh -n llvm/build/build.sh rust/build/build.sh tools/release.sh

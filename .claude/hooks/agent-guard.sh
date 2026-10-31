@@ -16,7 +16,7 @@
 #
 # PreToolUse hook of the writing subagents (the `hooks:` field of their
 # frontmatter). It makes mechanical what `.claude/rules/subagents.md` says in
-# words: a subagent never pushes, never amends, never forces, never writes under
+# words: a subagent never pushes, never publishes a release, never amends, never forces, never writes under
 # `upstream/` (the fetched toolchain sources) or under a `reference/` tree (a
 # pinned clone of another system, should one ever exist here), never cds into
 # either, and never installs or downloads anything (`cargo install`, `rustup`, `brew`, `pip`, `npm`,
@@ -62,6 +62,7 @@ G='(^|[;&|(`]|&&)[[:space:]]*((env|[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*)[[:space
 W='(^|[;&|(`]|&&)[[:space:]]*((env|[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*)[[:space:]]+)*'
 
 printf '%s\n' "$cmd" | grep -qE "${G}push([[:space:]]|$)" && refuse "a subagent never pushes"
+printf '%s\n' "$cmd" | grep -qE "${W}gh[[:space:]]+release([[:space:]]|$)" && refuse "a subagent never publishes a release (tools/release.sh is the maintainer's)"
 printf '%s\n' "$cmd" | grep -qE "${G}commit[^;&|]*[[:space:]]--amend([[:space:]]|$)" && refuse "a subagent never amends a commit"
 printf '%s\n' "$cmd" | grep -qE "${G}[a-z-]+[^;&|]*[[:space:]](-f|--force|--force-with-lease)([[:space:]]|$)" && \
     printf '%s\n' "$cmd" | grep -qE "${G}(push|branch|checkout|reset|clean|worktree)" && refuse "a subagent never forces anything in git"

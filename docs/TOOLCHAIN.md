@@ -79,9 +79,15 @@ Installing any of them is the user's.
    `aarch64-unknown-none-softfloat` too (D-0006). `std`'s rlibs need no libc to compile; the
    hello needs the sysroot to link. The crates come vendored by `just fetch`; the mirrors
    `backtrace-rs` and `libc` are pinned to what the release fixes (`rust/DESIGN.md`).
-3. **T3.** `dist/<name>-<version>-<host>.tar.zst` and `.sha256`, from a tagged commit,
-   uploaded as a GitHub release of this repository. A consumer's recipe downloads by version
-   and verifies the sum. Signed with signify when the userland ships it.
+3. **T3.** `just dist <name>`: `dist/<name>-<version>-<host>.tar.zst` and `.sha256`, one
+   directory inside with the install tree, `MANIFEST` (commit, tag, pins, the patch series
+   with its sums) and `share/doc/emibsd/` (the licences, the patches); reproducible (entries
+   sorted, `SOURCE_DATE_EPOCH` the commit's time, uid and gid 0, modes normalised), then
+   unpacked elsewhere and `tests/check.sh` run there, so the artifact is known to work away
+   from `target/`. `just release <name>`, the maintainer's: from HEAD tagged
+   `<name>-<version>` (`llvm-22.1.6+emibsd.1`), the GitHub release with the tarball, its sum
+   and notes. A consumer's recipe downloads by that tag and verifies the sum before it
+   unpacks; nothing is fetched as "latest". Signed with signify when the userland ships it.
 4. **T4.** The same `x.py` on EmiBSD, stage0 the T3 artifact for `aarch64-emibsd-emibsd8.0`.
    From then on each release builds from the previous one; the first cross-built one is the
    root of trust and is recorded here with its hash.
