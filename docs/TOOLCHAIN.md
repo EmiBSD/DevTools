@@ -4,10 +4,13 @@
 
 | | Version | From | Builds | Why |
 |---|---|---|---|---|
-| `llvm/` | 18.1.8 at OpenBSD's pin | `OpenBSD-src` `gnu/llvm` + `gnu/usr.bin/clang` + `gnu/lib/libcxx*`, `libclang_rt`, `libcompiler_rt` | clang, lld, libc++, libc++abi, compiler-rt | the C of the base system is built with the compiler OpenBSD builds it with, patches included (RETGUARD, `-fret-clean`, the fixed X18, BTI and PAC) |
-| inside `rust/` | 21 at rust's submodule | `llvm-project` (rust-lang's fork) | rustc's backend only | rustc 1.98.1 refuses an LLVM below 21 (`src/bootstrap`, `check_llvm_version`) |
+| `llvm/` | 22.1.6 at OpenBSD's pin | `OpenBSD-src` `gnu/llvm` + `gnu/usr.bin/clang` + `gnu/lib/libcxx*`, `libclang_rt`, `libcompiler_rt` | clang, lld, libc++, libc++abi, compiler-rt | the C of the base system is built with the compiler OpenBSD builds it with, patches included (RETGUARD, `-fret-clean`, the fixed X18, BTI and PAC) |
+| inside `rust/` | 22.1.8 at rust's submodule | `llvm-project` (rust-lang's fork) | rustc's backend only | rustc builds the LLVM it was released with, rust-lang's fork with rustc's own patches; it refuses an LLVM below 21 (`src/bootstrap`, `check_llvm_version`) |
 
-Decided 2026-10-23; nobody reconciles them. The clang of `llvm/` is never used to build
+Decided 2026-10-23 believing OpenBSD's LLVM at the pin was 18.1.8; on 2026-10-31 the pin
+was read and it is 22.1.6, which rustc would accept. The decision stands on its other ground
+(each toolchain builds the LLVM its upstream builds, with that upstream's patches) until the
+maintainer revisits it; nobody reconciles them. The clang of `llvm/` is never used to build
 rustc's LLVM and rustc's LLVM never emits the system's C.
 
 ## Hosts and targets
@@ -48,5 +51,5 @@ amd64 as a target waits for Kernel's N10 (Governance G-0007).
 ## Versions
 
 `<upstream version>+emibsd.<N>`: the upstream's version and our patch level, as
-`UPSTREAM.toml` carries it (`18.1.8+emibsd.1`, `1.98.1+emibsd.1`). A pin bump is its own
+`UPSTREAM.toml` carries it (`22.1.6+emibsd.1`, `1.98.1+emibsd.1`). A pin bump is its own
 commit; `N` resets to 1 on a bump and rises with each patch series change at the same pin.

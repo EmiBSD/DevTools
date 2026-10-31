@@ -41,7 +41,7 @@ Rust project.
 
 ```mermaid
 flowchart LR
-    obsd["OpenBSD-src (mirror)"] -- "gnu/llvm 18" --> dev["DevTools"]
+    obsd["OpenBSD-src (mirror)"] -- "gnu/llvm 22" --> dev["DevTools"]
     rust["rust, llvm-project, cargo (mirrors)"] -- "1.98.1" --> dev
     dev -- "clang, lld, libc++" --> ul["Userland"]
     dev -- "clang today, rustc when self-hosted" --> k["Kernel"]

@@ -6,7 +6,7 @@ repo    = "https://github.com/EmiBSD/OpenBSD-src"           # the organisation's
 origin  = "https://github.com/openbsd/src"          # what the mirror is fed from
 path    = ["gnu/llvm", "gnu/usr.bin/clang", "gnu/lib/libcxx", "gnu/lib/libcxxabi", "gnu/lib/libclang_rt", "gnu/lib/libcompiler_rt"]
 commit  = "3ce1f3f79392ae4d60ce67bea5835d517caaa2ca"
-version = "18.1.8+emibsd.1"       # OpenBSD's LLVM at the pin, plus our patch level
+version = "22.1.6+emibsd.1"       # OpenBSD's LLVM at the pin (gnu/usr.bin/clang/include/clang/Basic/Version.inc), plus our patch level
 license = ["Apache-2.0 WITH LLVM-exception"]   # the families; the texts stay in the source
 
 [security]

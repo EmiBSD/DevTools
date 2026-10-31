@@ -38,4 +38,9 @@ what the pin bump that closes them is, and `tests/cve/` for what we patched ours
 
 ## Open questions
 
+- The version at the pin is 22.1.6 (`gnu/usr.bin/clang/include/clang/Basic/Version.inc`,
+  OpenBSD's `Version.inc,v 1.16 2026/05/29`), not the 18.1.8 the two-LLVMs decision of
+  2026-10-23 assumed: rustc 1.98.1 (which needs 21 or newer) could build against it. Whether
+  one LLVM should serve both is the maintainer's to revisit; `docs/TOOLCHAIN.md`.
+
 - OpenBSD's patches (RETGUARD, -fret-clean, the fixed X18, BTI and PAC defaults) and its BSD-make build glue come with the tree; Kernel's `just comp` builds it this way today. The longest build of the repository: built once, cached.

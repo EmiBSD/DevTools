@@ -23,9 +23,9 @@ answered in Spanish.
   name; no commit of ours lands on them. `tools/mirror.py check` verifies a pin exists on
   the mirror and on the origin with the same hash; pushing a tag to a mirror is the user's,
   from the main session.
-- **Two LLVMs, by decision (2026-10-23).** rustc 1.98.1 needs LLVM 21 and builds the one in
-  its `src/llvm-project` submodule; OpenBSD's `gnu/llvm` 18.1.8 at the pin stays the compiler
-  of the C, with OpenBSD's patches (RETGUARD, `-fret-clean`, the fixed X18, BTI and PAC
+- **Two LLVMs, by decision (2026-10-23).** rustc 1.98.1 builds the LLVM of its
+  `src/llvm-project` submodule (22.1.8, rust-lang's fork); OpenBSD's `gnu/llvm` 22.1.6 at the
+  pin stays the compiler of the C, with OpenBSD's patches (RETGUARD, `-fret-clean`, the fixed X18, BTI and PAC
   defaults). Nobody reconciles them.
 - **Stable Rust, no nightly.** The `std` for `aarch64-unknown-openbsd` (tier 3) is built with
   `x.py` from the stable release's source as part of the toolchain. Stage0 is rustup's rustc
