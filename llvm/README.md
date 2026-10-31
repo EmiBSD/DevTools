@@ -9,7 +9,7 @@ of the system and it is the backend rustc builds against (decision D-0003 of
 
 | File | What |
 |---|---|
-| `UPSTREAM.toml` | the pin: the fork at `llvmorg-22.1.6`, no patches |
+| `UPSTREAM.toml` | the pin: the fork at `llvmorg-22.1.8`; the patch series of `patches/` (D-0004) |
 | `DEFINITION.md` | what it gives us and what we build of it |
 | `DESIGN.md` | the two CMake stages and the flags, with their reasons |
 | `DELIVERY.md` | the artifact and the comp set |

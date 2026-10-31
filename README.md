@@ -22,7 +22,7 @@
 The toolchains of [EmiBSD](https://www.emibsd.org), both imported, both from the forks alone,
 built once for every repository that needs them:
 
-- **`llvm/`**: upstream LLVM at the tag `llvmorg-22.1.6`, from the fork `EmiBSD/llvm-project`,
+- **`llvm/`**: upstream LLVM at the tag `llvmorg-22.1.8`, from the fork `EmiBSD/llvm-project`,
   built with its own CMake: clang, lld, the tools, and compiler-rt, libunwind, libc++abi and
   libc++ for `aarch64-emibsd-emibsd8.0`, the target our patch series teaches it (decision
   D-0004). Apache-2.0 with the LLVM exception. The one compiler
@@ -51,7 +51,7 @@ Rust project.
 
 ```mermaid
 flowchart LR
-    llvm["llvm-project (mirror)"] -- "llvmorg-22.1.6" --> dev["DevTools"]
+    llvm["llvm-project (mirror)"] -- "llvmorg-22.1.8" --> dev["DevTools"]
     rust["rust, cargo (mirrors)"] -- "1.98.1" --> dev
     dev -- "clang, lld, libc++; rustc" --> ul["the userland"]
     dev -- "clang, lld; rustc with core and alloc for its target" --> k["the kernel"]
@@ -69,9 +69,9 @@ of OpenBSD is in it (D-0003).
 | | Scope | Proof | State |
 |---|---|---|---|
 | T0 | the repository, the pins, the tools, the mirror check | `just check` green | met 2026-10-31 |
-| T1 | upstream LLVM 22.1.6 built from the fork with CMake on the macOS host: the host tools, then the target runtimes | a C and a C++ hello compiled for the target run under the EmiBSD kernel in QEMU | built and checked on the host 2026-10-31 (`llvm/tests/check.sh`); the QEMU run pending |
+| T1 | upstream LLVM 22.1.8 built from the fork with CMake on the macOS host: the host tools, then the target runtimes | a C and a C++ hello compiled for the target run under the EmiBSD kernel in QEMU | built and checked on the host 2026-10-31 (`llvm/tests/check.sh`); the QEMU run pending |
 | T2 | rustc with `x.py` against T1's LLVM, macOS host, target `aarch64-emibsd-emibsd` (decision D-0004: its target spec and `std` paths as `rust/patches/`) and the kernel's `aarch64-unknown-none-softfloat` (D-0006), the userland's sysroot | a static Rust hello runs under the EmiBSD kernel in QEMU | built and checked on the host 2026-10-31 (`rust/tests/check.sh`): rustc, the tools, `std` for the host and for `aarch64-emibsd-emibsd`, `core`/`alloc` for the kernel's target; the QEMU run pending |
-| T3 | GitHub releases: one tarball per host with `.sha256`; consumers fetch by pin | a consumer's toolchain recipe installs it from the release | released 2026-10-31: `llvm-22.1.6+emibsd.3` (62 MB: the compiler, the linker and the binutils, `llvm/DESIGN.md`) and `rust-1.98.1+emibsd.2` (105 MB), each with its `.sha256`; the consumer's recipe pending |
+| T3 | GitHub releases: one tarball per host with `.sha256`; consumers fetch by pin | a consumer's toolchain recipe installs it from the release | released 2026-10-31: `llvm-22.1.6+emibsd.3` (65 MB: the compiler, the linker and the binutils, `llvm/DESIGN.md`) and `rust-1.98.1+emibsd.2` (140 MB), each with its `.sha256`; the kernel built and booted with them the same day (its own isolated test); next: `llvm-22.1.8+emibsd.1`, the LLVM rustc 1.98.1 was released with, and `rust-1.98.1+emibsd.3` built against it |
 | T4 | self-hosted: rustc built on EmiBSD with T3 as stage0 | after the kernel's N9, when no inherited tree is left | |
 
 ## Using it

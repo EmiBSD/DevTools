@@ -26,7 +26,7 @@ Date: YYYY-MM-DD · Status: proposed | accepted | superseded by D-MMMM
 |---|---|---|---|
 | D-0001 | 2026-10-18 | accepted | arm64 first; amd64 waits for the kernel's N10 |
 | D-0002 | 2026-10-31 | accepted, two points open | DevTools is its own repository: the toolchains from the forks, released as artifacts |
-| D-0003 | 2026-10-31 | accepted | One LLVM, upstream's, from the fork; nothing of OpenBSD in DevTools |
+| D-0003 | 2026-10-31 | accepted; pin moved to `llvmorg-22.1.8` 2026-10-31 | One LLVM, upstream's, from the fork; nothing of OpenBSD in DevTools |
 | D-0004 | 2026-10-31 | accepted; applied to LLVM and to Rust 2026-10-31 | EmiBSD's own target triple, `aarch64-emibsd-emibsd8.0`, carried as patches of ours |
 | D-0005 | 2026-10-31 | accepted | DevTools stands alone: its rules, policies and decisions live here |
 | D-0006 | 2026-10-31 | accepted | T2's scope: the kernel's target, the artifact's tools, the crates vendored by `just fetch`, the pins follow the release |
@@ -109,8 +109,15 @@ or newer). `OpenBSD-src` is not an input of DevTools in any form.
   defaults) are not in this compiler. Whatever the base system's C needs of them is the
   userland repository's matter, where that C is built; if the maintainer ever wants such
   hardening here, it is EmiBSD's own patch, decided then, never taken from OpenBSD's tree.
-- T1 is a CMake build of the fork. The watcher compares `llvmorg-22.1.6` with upstream's
+- T1 is a CMake build of the fork. The watcher compares the pinned tag with upstream's
   releases.
+- The pin moved from `llvmorg-22.1.6` to `llvmorg-22.1.8` on 2026-10-31, in its own commit,
+  by the maintainer's decision ("dale"): 22.1.8 is the last of the 22 series and the LLVM
+  that rustc 1.98.1 was released with (rustup's rustc 1.98.1 reports it), so the one LLVM is
+  the one the compiler was tested against; the kernel's isolated test with the 22.1.6
+  artifacts had shown the two compilers emit different code (its text 1.5 % smaller), and
+  the kernel asked for the versions to match before it switches toolchain, so that its
+  before-and-after measurement compares who built the toolchain, not two LLVMs.
 
 Sources: `EmiBSD/llvm-project` tag `llvmorg-22.1.6` = `fc4aad7b`; `EmiBSD/rust` at 1.98.1,
 `src/bootstrap/src/core/build_steps/llvm.rs` (`need >=21`).
@@ -248,3 +255,4 @@ The maintainer, 2026-10-31, "dale tonses":
 - The kernel's target adds no patch: it is upstream's, tier 2.
 - The compiler's own `libc` (0.2.183 in the root `Cargo.lock`) needs EmiBSD only when rustc
   runs on EmiBSD (T4); it is then patched the same way.
+

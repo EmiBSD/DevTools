@@ -4,7 +4,7 @@
 
 | | Version | From | Builds |
 |---|---|---|---|
-| `llvm/` | `llvmorg-22.1.6` | the fork `EmiBSD/llvm-project` at upstream's tag, as upstream ships it | clang, lld, the tools; compiler-rt, libunwind, libc++abi, libc++ for `aarch64-emibsd-emibsd8.0` (our patch series, D-0004) |
+| `llvm/` | `llvmorg-22.1.8` | the fork `EmiBSD/llvm-project` at upstream's tag, as upstream ships it | clang, lld, the tools; compiler-rt, libunwind, libc++abi, libc++ for `aarch64-emibsd-emibsd8.0` (our patch series, D-0004) |
 
 It compiles the C and C++ of the system and it is the backend rustc builds against
 (rustc 1.98.1 needs LLVM 21 or newer). Nothing of OpenBSD enters DevTools: no LLVM code, no
@@ -25,7 +25,7 @@ flowchart LR
     k["the kernel repository"]
     os["the release repository"]
 
-    llvm -- "llvmorg-22.1.6" --> dev
+    llvm -- "llvmorg-22.1.8" --> dev
     rust -- "1.98.1" --> dev
     cargo -- "submodule src/tools/cargo" --> dev
     dev -- "clang, lld, libc++; rustc for its written programs" --> ul
@@ -36,7 +36,7 @@ flowchart LR
 
 | Flow | What | Why |
 |---|---|---|
-| mirrors to DevTools | rust-lang/rust at the pinned stable tag with its `cargo` submodule; upstream LLVM at `llvmorg-22.1.6` | the only inputs; nothing comes from OpenBSD (D-0003); one LLVM, built with its own CMake, for the C and for rustc's backend |
+| mirrors to DevTools | rust-lang/rust at the pinned stable tag with its `cargo` submodule; upstream LLVM at `llvmorg-22.1.8` | the only inputs; nothing comes from OpenBSD (D-0003); one LLVM, built with its own CMake, for the C and for rustc's backend |
 | DevTools to the userland | clang, lld and libc++; the Rust cross toolchain when a program written for EmiBSD exists | one toolchain for the whole base system; what OpenBSD's build glue passed to its own patched clang is adapted there, where that C is built |
 | DevTools to the kernel | rustc with `core` and `alloc` for `aarch64-unknown-none-softfloat`, clang and lld for its assembly and the programs its smokes run (T1, T2; D-0006) | one toolchain for the kernel as for the userland; the kernel's `rust-toolchain.toml` names the same stable version |
 | the userland to DevTools (dotted) | the sysroot: libc, crt, headers, by path (`EMIBSD_SYSROOT`) | a binary the toolchain produces needs a libc; `std`'s rlibs compile without one, so the cycle breaks there |
@@ -85,7 +85,7 @@ Installing any of them is the user's.
    sorted, `SOURCE_DATE_EPOCH` the commit's time, uid and gid 0, modes normalised), then
    unpacked elsewhere and `tests/check.sh` run there, so the artifact is known to work away
    from `target/`. `just release <name>`, the maintainer's: from HEAD tagged
-   `<name>-<version>` (`llvm-22.1.6+emibsd.1`), the GitHub release with the tarball, its sum
+   `<name>-<version>` (`llvm-22.1.8+emibsd.1`), the GitHub release with the tarball, its sum
    and notes. A consumer's recipe downloads by that tag and verifies the sum before it
    unpacks; nothing is fetched as "latest". Signed with signify when the userland ships it.
 4. **T4.** The same `x.py` on EmiBSD, stage0 the T3 artifact for `aarch64-emibsd-emibsd8.0`.
@@ -95,5 +95,5 @@ Installing any of them is the user's.
 ## Versions
 
 `<upstream version>+emibsd.<N>`: the upstream's version and our patch level, as
-`UPSTREAM.toml` carries it (`22.1.6+emibsd.1`, `1.98.1+emibsd.1`). A pin bump is its own
+`UPSTREAM.toml` carries it (`22.1.8+emibsd.1`, `1.98.1+emibsd.3`). A pin bump is its own
 commit; `N` resets to 1 on a bump and rises with each change of ours at the same pin.
