@@ -48,6 +48,7 @@ The whole picture is in [Governance](https://github.com/EmiBSD/Governance),
 ```
 just status          # the two toolchains, their STATUS and version
 just mirror-check    # every pin exists on its mirror and its origin with the same hash
+just outdated        # is any pin behind its upstream's latest release? (the daily workflow files an issue)
 just fetch           # clone the pinned sources into upstream/ (network)
 just fetch-check     # the fetched sources match the pins
 just build llvm      # build one toolchain into target/ (long: built once, cached)

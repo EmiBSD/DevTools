@@ -40,6 +40,10 @@ answered in Spanish.
 - **Nothing installed, nothing downloaded without the user's OK.** `just fetch` is the one
   sanctioned download and runs from the main session. The guard hook refuses installs,
   pushes, amends and writes under `upstream/`.
+- **The watcher reports, never bumps.** `.github/workflows/upstream-watch.yml` runs
+  `tools/watch.py` daily: it compares each `UPSTREAM.toml`'s version with the upstream's
+  latest release (version strings only, never sources) and opens one issue per outdated pin,
+  labelled `upstream`. A pin moves only by the user's decision, in its own commit.
 - **Nothing GPL** enters the tree or the artifacts (`../Governance/policies/licences.md`).
 - Commit on the user's "dale", push on "súbelo"; never push otherwise.
 
@@ -48,7 +52,7 @@ answered in Spanish.
 ```
 llvm/      OpenBSD's LLVM: UPSTREAM.toml, DEFINITION, DESIGN, DELIVERY, STATUS, patches/, build/, tests/
 rust/      rust-lang/rust: the same files; the two submodules pinned in UPSTREAM.toml
-tools/     upstream.py (fetch and check the pins), mirror.py (the mirrors against the origins), cve.py (NVD)
+tools/     upstream.py (fetch and check the pins), mirror.py (the mirrors against the origins), watch.py (newer releases), cve.py (NVD)
 docs/      TOOLCHAIN.md: hosts, targets, the stage0 chain, the artifact format
 upstream/  the fetched sources (gitignored); target/ the builds; dist/ the artifacts
 .claude/   settings, rules/, hooks/agent-guard.sh
@@ -68,7 +72,7 @@ upstream/  the fetched sources (gitignored); target/ the builds; dist/ the artif
 
 ## Working
 
-- `just` at the root: `fetch`, `fetch-check`, `mirror-check`, `status`, `build <llvm|rust>`,
+- `just` at the root: `fetch`, `fetch-check`, `mirror-check`, `outdated`, `status`, `build <llvm|rust>`,
   `cve <llvm|rust>` (network, the user's OK). `PATH=/opt/homebrew/opt/rustup/bin:$PATH`.
 - A build is long (OpenBSD's LLVM: about 2,850 C++ files per arch, half an hour on the Mac
   with the cores it gets; rustc longer): built once, cached under `target/`, never rebuilt

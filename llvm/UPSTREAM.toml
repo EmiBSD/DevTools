@@ -16,3 +16,6 @@ cpe     = "llvm:llvm"            # NVD product, for tools/cve.py
 series  = []                              # patches/NNNN-*.patch, in order; each with its reason
 
 # OpenBSD's patches (RETGUARD, -fret-clean, the fixed X18, BTI and PAC defaults) and its BSD-make build glue come with the tree; Kernel's `just comp` builds it this way today. The longest build of the repository: built once, cached.
+
+[watch]                                   # tools/watch.py: where a newer release is announced; it reports, never bumps
+source  = "none"                          # follows LandingZone's OpenBSD pin (reference/PINNED.md); nothing to watch here

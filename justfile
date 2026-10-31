@@ -28,6 +28,10 @@ fetch-check:
 mirror-check:
     python3 -I tools/mirror.py check
 
+# Is any pin behind its upstream's latest release? Reports only (network: version strings, no sources).
+outdated:
+    python3 -I tools/watch.py outdated
+
 # Build one toolchain from its fetched source: `just build llvm`, `just build rust`.
 build name:
     python3 -I tools/upstream.py check {{name}} && sh {{name}}/build/build.sh
@@ -38,5 +42,5 @@ cve name:
 
 # The checks that cost nothing: the pins parse, the mirrors hold them, the scripts compile.
 check: mirror-check
-    python3 -I -m py_compile tools/upstream.py tools/mirror.py tools/cve.py
+    python3 -I -m py_compile tools/upstream.py tools/mirror.py tools/cve.py tools/watch.py
     sh -n llvm/build/build.sh rust/build/build.sh

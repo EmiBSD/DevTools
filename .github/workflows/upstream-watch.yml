@@ -1,0 +1,22 @@
+# Daily: is any pinned upstream behind its latest release? Reports as one issue per upstream.
+# It fetches version strings only, never sources, and never changes a pin (tools/watch.py).
+name: upstream-watch
+on:
+  schedule:
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+permissions:
+  contents: read
+  issues: write
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compare pins with the upstreams' latest releases
+        run: python3 -I tools/watch.py outdated || true
+      - name: Open or update one issue per outdated upstream
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 -I tools/watch.py issues
