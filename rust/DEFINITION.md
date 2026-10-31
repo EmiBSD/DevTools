@@ -1,4 +1,4 @@
-# rust (imported; moved from Userland/compiler/rust on 2026-10-31, Governance G-0012)
+# rust (imported; the pin moved here from the userland repository on 2026-10-31, decision D-0002)
 
 STATUS: see `STATUS`. Compiled from its upstream at the pin of `UPSTREAM.toml`, never
 rewritten (the user's decision of 2026-10-23). rust-lang/rust, mirrored at `EmiBSD/rust`.
@@ -11,8 +11,8 @@ The targets, libraries and tools taken from the source; what is left out and why
 
 ## Constraints
 
-Which libc, libtls and other libraries of this repository it must link; static or dynamic;
-privileges.
+The sysroot it links against (`EMIBSD_SYSROOT`: libc, crt, headers); the stage0 it
+bootstraps from; static or dynamic.
 
 ## Compatibility
 
@@ -38,4 +38,4 @@ what the pin bump that closes them is, and `tests/cve/` for what we patched ours
 
 ## Open questions
 
-- One LLVM (Governance G-0015, 2026-10-31): rustc is built against llvm/'s upstream LLVM 22.1.6 through llvm-config (rustc 1.98.1 needs >= 21); its own src/llvm-project submodule is not fetched. Built with x.py, host first, then the target aarch64-unknown-openbsd: the std for the tier 3 target is built as part of the toolchain, from a stable release's source, without nightly. Stage0: rustup's rustc on the host; on EmiBSD, the previous build. library/backtrace needs its mirror before T2.
+- One LLVM (decision D-0003, 2026-10-31): rustc is built against llvm/'s upstream LLVM 22.1.6 through llvm-config (rustc 1.98.1 needs >= 21); its own src/llvm-project submodule is not fetched. Built with x.py, host first, then the target aarch64-unknown-openbsd: the std for the tier 3 target is built as part of the toolchain, from a stable release's source, without nightly. Stage0: rustup's rustc on the host; on EmiBSD, the previous build. library/backtrace needs its mirror before T2.

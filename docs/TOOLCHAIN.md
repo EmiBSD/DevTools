@@ -1,6 +1,6 @@
 # The toolchains: hosts, targets, the chain, the artifacts
 
-## One LLVM (Governance G-0015)
+## One LLVM (decision D-0003)
 
 | | Version | From | Builds |
 |---|---|---|---|
@@ -10,21 +10,57 @@ It compiles the C and C++ of the system and it is the backend rustc builds again
 (rustc 1.98.1 needs LLVM 21 or newer). Nothing of OpenBSD enters DevTools: no LLVM code, no
 patches, no build glue. rustc's own `src/llvm-project` submodule is not fetched.
 
+## Where it sits
+
+```mermaid
+flowchart LR
+    subgraph forks["Forks: read-only mirrors, no commits of ours"]
+        direction TB
+        llvm["llvm-project<br/>(llvm/llvm-project)"]
+        rust["rust<br/>(rust-lang/rust)"]
+        cargo["cargo<br/>(rust-lang/cargo)"]
+    end
+    dev["DevTools<br/>clang, lld, libc++, compiler-rt<br/>rustc, cargo, std"]
+    ul["the userland repository"]
+    k["the kernel repository"]
+    os["the release repository"]
+
+    llvm -- "llvmorg-22.1.6" --> dev
+    rust -- "1.98.1" --> dev
+    cargo -- "submodule src/tools/cargo" --> dev
+    dev -- "clang, lld, libc++; rustc for its written programs" --> ul
+    dev -- "rustc, once EmiBSD builds itself" --> k
+    dev -- "the comp set" --> os
+    ul -. "sysroot: libc, crt, headers" .-> dev
+```
+
+| Flow | What | Why |
+|---|---|---|
+| mirrors to DevTools | rust-lang/rust at the pinned stable tag with its `cargo` submodule; upstream LLVM at `llvmorg-22.1.6` | the only inputs; nothing comes from OpenBSD (D-0003); one LLVM, built with its own CMake, for the C and for rustc's backend |
+| DevTools to the userland | clang, lld and libc++; the Rust cross toolchain when a program written for EmiBSD exists | one toolchain for the whole base system; what OpenBSD's build glue passed to its own patched clang is adapted there, where that C is built |
+| DevTools to the kernel | rustc, once EmiBSD hosts its own build | the kernel itself needs only a stock stable toolchain today (its target is `aarch64-unknown-none-softfloat`); it keeps its own clang build for the inherited userland its smokes boot |
+| the userland to DevTools (dotted) | the sysroot: libc, crt, headers, by path (`EMIBSD_SYSROOT`) | a binary the toolchain produces needs a libc; `std`'s rlibs compile without one, so the cycle breaks there |
+| DevTools to the release repository | the comp set: the artifacts by pin and checksum | it assembles and releases; it builds nothing of its own |
+
+DevTools reads nothing of the three: no source, no rules, no logs (D-0005). What it knows of
+them is in this table.
+
 ## Hosts and targets
 
 | Host | Target | When | Stage0 for `rust/` |
 |---|---|---|---|
 | `aarch64-apple-darwin` | `aarch64-unknown-openbsd` | T1, T2: the development machine | rustup's 1.98.1 (`rust-toolchain.toml`) |
 | `x86_64-unknown-linux-gnu` | `aarch64-unknown-openbsd` | only if a consumer's CI needs it (open decision) | rustup's |
-| `aarch64-unknown-openbsd` | itself | T4, after Kernel's N9 | the previous DevTools release |
+| `aarch64-unknown-openbsd` | itself | T4, after the kernel's milestone N9 (no inherited tree left) | the previous DevTools release |
 
-amd64 as a target waits for Kernel's N10 (Governance G-0007).
+amd64 as a target waits for the kernel's milestone N10 (decision D-0001). The target's
+name is to become `aarch64-unknown-emibsd` (decision D-0004, not yet applied here).
 
 ## Inputs a build takes
 
 | Variable | Meaning | Default |
 |---|---|---|
-| `EMIBSD_SYSROOT` | the target's libc, crt, headers, for LLVM's stage 2 and for linking Rust programs (Userland's tree; until it exists, the OpenBSD sets Kernel boots, by path) | none: the build refuses to guess |
+| `EMIBSD_SYSROOT` | the target's libc, crt, headers, for LLVM's stage 2 and for linking Rust programs: a directory given by path, produced by the userland repository (until it exists, the base sets the kernel boots) | none: the build refuses to guess |
 | `COMP_JOBS` | parallel jobs | 6 |
 | `SOURCE_DATE_EPOCH` | the commit's time, for reproducible archives | set by the justfile |
 
@@ -35,14 +71,14 @@ Installing any of them is the user's.
 
 1. **T1.** `llvm/build/build.sh`: stage 1 the host tools, stage 2 the target runtimes
    (`llvm/DESIGN.md`). Proof: a C hello and a C++ hello, compiled for the target and run under
-   Kernel in QEMU.
+   the EmiBSD kernel in QEMU.
 2. **T2.** `rust/build/build.sh` runs `x.py dist` with a `config.toml` that names the host,
    the target `aarch64-unknown-openbsd`, `llvm-config` from T1, the linker (T1's lld), the
    sysroot, and `llvm.download-ci-llvm = false`. `std`'s rlibs need no libc to compile; the
    hello needs the sysroot to link. Needs the `backtrace-rs` mirror first.
 3. **T3.** `dist/<name>-<version>-<host>.tar.zst` and `.sha256`, from a tagged commit,
    uploaded as a GitHub release of this repository. A consumer's recipe downloads by version
-   and verifies the sum. Signed with signify when Userland ships it.
+   and verifies the sum. Signed with signify when the userland ships it.
 4. **T4.** The same `x.py` on EmiBSD, stage0 the T3 artifact for `aarch64-unknown-openbsd`.
    From then on each release builds from the previous one; the first cross-built one is the
    root of trust and is recorded here with its hash.

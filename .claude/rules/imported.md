@@ -1,8 +1,8 @@
 # Imported toolchains: the practice
 
 Everything in this repository is someone else's compiler, compiled. This is what that allows
-and forbids; `CLAUDE.md` has the non-negotiables, `../Governance/policies/` the licences and
-dependencies.
+and forbids; `CLAUDE.md` has the non-negotiables, `docs/POLICIES.md` the licences and
+dependencies, `docs/DECISIONS.md` the decisions.
 
 ## The source
 
@@ -28,15 +28,17 @@ dependencies.
   guessing one.
 - A flag that differs from how the upstream builds the same thing is a line in
   DESIGN.md with its reason. The default is the upstream's build, unchanged.
-- `tests/` holds what proves the artifact: a hello world compiled and run under Kernel, the
+- `tests/` holds what proves the artifact: a hello world compiled and run under the EmiBSD
+  kernel in QEMU, the
   target's `std` linking, the versions the binaries print. A build with no test that ran it
   is not done.
 
 ## The patches
 
 - A patch exists only when the upstream cannot carry the change (something EmiBSD-specific,
-  an EmiBSD path). It is the smallest diff that does it, its header says why, and DESIGN.md
-  lists it. A patch that upstream later takes is dropped at the next pin bump.
+  an EmiBSD path, the EmiBSD target of decision D-0004). It is the smallest diff that does
+  it, its header says why and carries the author's ISC block (`docs/POLICIES.md`), and
+  DESIGN.md lists it. A patch that upstream later takes is dropped at the next pin bump.
 - Patches are never applied to `upstream/`; the series is applied to the copy in `target/`.
 
 ## The artifacts (T3)

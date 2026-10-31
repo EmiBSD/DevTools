@@ -30,9 +30,14 @@ built once for every repository that needs them:
   rustc, cargo, and `std` for `aarch64-unknown-openbsd`, a tier 3 target that this way gets
   its standard library from a stable release's source, without nightly. Apache-2.0 and MIT.
 
-Nothing here is written code, and nothing of it comes from OpenBSD (Governance G-0015). The
-sources come from the read-only mirrors `llvm-project`, `rust` and `cargo`, pinned in each
-`UPSTREAM.toml`; what is ours is the build scripts and the artifacts.
+Nothing here is written code, and nothing of it comes from OpenBSD (decision D-0003 of
+`docs/DECISIONS.md`). The sources come from the read-only mirrors `llvm-project`, `rust` and
+`cargo`, pinned in each `UPSTREAM.toml`; what is ours is the build scripts, the patches and
+the artifacts.
+
+The build scripts, the documents and the commits of this repository are written by Claude
+Code agents under its written rules (`CLAUDE.md`, `.claude/rules/`); the maintainer, Emilio
+Navarrete Lineros, takes every decision and approves every commit (`docs/POLICIES.md`).
 
 EmiBSD is not affiliated with or endorsed by the OpenBSD project, the LLVM project or the
 Rust project.
@@ -43,25 +48,26 @@ Rust project.
 flowchart LR
     llvm["llvm-project (mirror)"] -- "llvmorg-22.1.6" --> dev["DevTools"]
     rust["rust, cargo (mirrors)"] -- "1.98.1" --> dev
-    dev -- "clang, lld, libc++" --> ul["Userland"]
-    dev -- "rustc, once the system builds itself" --> k["Kernel"]
-    dev -- "the comp set" --> os["OS"]
+    dev -- "clang, lld, libc++" --> ul["the userland"]
+    dev -- "rustc, once the system builds itself" --> k["the kernel"]
+    dev -- "the comp set" --> os["the releases"]
     ul -. "sysroot: libc, crt, headers" .-> dev
 ```
 
-The whole picture is in [Governance](https://github.com/EmiBSD/Governance),
-`docs/architecture.md`; this repository exists by its decision G-0012 and takes nothing from
-OpenBSD by its decision G-0015.
+DevTools knows nothing of its consumers' internals: it takes a sysroot as an input and
+publishes artifacts with checksums. `docs/TOOLCHAIN.md` has the inputs, the outputs, the
+hosts and the chain; `docs/DECISIONS.md` why the repository exists (D-0002) and why nothing
+of OpenBSD is in it (D-0003).
 
 ## Milestones
 
 | | Scope | Proof | State |
 |---|---|---|---|
 | T0 | the repository, the pins, the tools, the mirror check | `just check` green | met 2026-10-31 |
-| T1 | upstream LLVM 22.1.6 built from the fork with CMake on the macOS host: the host tools, then the target runtimes | a C and a C++ hello compiled for the target run under Kernel in QEMU | |
-| T2 | rustc with `x.py` against T1's LLVM, macOS host, target `aarch64-unknown-openbsd`, Userland's sysroot | a static Rust hello runs under Kernel in QEMU | |
-| T3 | GitHub releases: one tarball per host with `.sha256`; consumers fetch by pin | Userland's `just toolchain` installs it | |
-| T4 | self-hosted: rustc built on EmiBSD with T3 as stage0 | after Kernel's N9 | |
+| T1 | upstream LLVM 22.1.6 built from the fork with CMake on the macOS host: the host tools, then the target runtimes | a C and a C++ hello compiled for the target run under the EmiBSD kernel in QEMU | |
+| T2 | rustc with `x.py` against T1's LLVM, macOS host, target `aarch64-unknown-openbsd` (to be renamed `aarch64-unknown-emibsd`, decision D-0004), the userland's sysroot | a static Rust hello runs under the EmiBSD kernel in QEMU | |
+| T3 | GitHub releases: one tarball per host with `.sha256`; consumers fetch by pin | a consumer's toolchain recipe installs it from the release | |
+| T4 | self-hosted: rustc built on EmiBSD with T3 as stage0 | after the kernel's N9, when no inherited tree is left | |
 
 ## Using it
 
@@ -75,7 +81,9 @@ just build llvm      # build one toolchain into target/ (long: built once, cache
 just check           # what costs nothing: pins, mirrors, scripts
 ```
 
-`docs/TOOLCHAIN.md` has the hosts, the targets, the stage0 chain and the artifact format.
+`docs/TOOLCHAIN.md` has the hosts, the targets, the stage0 chain and the artifact format;
+`docs/DECISIONS.md`, `docs/POLICIES.md` and `docs/PROCESS.md` the rules the repository
+works under. It carries all of them itself and cites no other repository's files.
 
 ## Licence
 

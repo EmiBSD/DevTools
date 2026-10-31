@@ -3,8 +3,8 @@
 ## How it is built
 
 The source at the pin, copied to `target/`, `patches/` applied, built by `build/build.sh`
-against the sysroot it is given (Userland's libc, crt and headers). Flags that differ from OpenBSD's build, with
-the reason.
+against the sysroot it is given (`EMIBSD_SYSROOT`: the userland's libc, crt and headers).
+Flags that differ from upstream's build, with the reason.
 
 ## Patches
 
@@ -21,4 +21,5 @@ the tests that run it under our kernel.
 
 ## Dependencies
 
-The sysroot it links against (Userland), the stage0 it bootstraps from, and any other upstream it needs.
+The sysroot it links against (`EMIBSD_SYSROOT`), the stage0 it bootstraps from, `llvm/`'s
+`llvm-config`, and any other upstream it needs.

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Fetch, verify and pin the upstream sources of the imported programs (docs/PROGRAM.md).
+"""Fetch, verify and pin the upstream sources of the toolchains (.claude/rules/imported.md).
 
-usage: upstream.py fetch [<program dir>...]     fetch what the UPSTREAM.toml files name
-       upstream.py check [<program dir>...]     every fetched upstream matches its pin
+usage: upstream.py fetch [<toolchain dir>...]   fetch what the UPSTREAM.toml files name
+       upstream.py check [<toolchain dir>...]   every fetched upstream matches its pin
 
 Git upstreams are cloned sparse, blob-less, into upstream/<mirror name>/ at the repository
 root, one clone per mirror shared by every program that names it (EmiBSD/OpenBSD-src holds
@@ -58,7 +58,7 @@ def fetch_git(key, ups):
     repo = ups[0]["repo"]
     commits = {u.get("commit") or u.get("tag") for u in ups}
     if len(commits) != 1:
-        raise SystemExit(f"upstream: {key}: programs disagree on the pin: {sorted(commits)}")
+        raise SystemExit(f"upstream: {key}: toolchains disagree on the pin: {sorted(commits)}")
     want = commits.pop()
     if not want:
         raise SystemExit(f"upstream: {key}: no commit or tag pinned")

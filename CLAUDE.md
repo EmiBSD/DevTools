@@ -3,10 +3,20 @@
 The toolchains of EmiBSD, both **imported** and both from the forks alone: upstream LLVM at
 a release tag (clang, lld, libc++, libc++abi, compiler-rt; Apache-2.0 with the LLVM
 exception) and Rust at a pinned stable tag (rustc, cargo, std; Apache-2.0 and MIT), built
-once and released as artifacts that Userland, Kernel and OS consume. One LLVM for the C and
-for rustc. **Nothing of OpenBSD enters this repository** (Governance G-0015). Repository
-`EmiBSD/DevTools`, created 2026-10-31 under Governance's decision G-0012. The rules that cross repositories are in `../Governance`
-(`docs/invariants.md`, `decisions/`); this file is the rules inside this one.
+once and released as artifacts that the other EmiBSD repositories (the kernel, the userland,
+the release assembly) consume. One LLVM for the C and for rustc. **Nothing of OpenBSD enters
+this repository** (decision D-0003). Repository `EmiBSD/DevTools`, created 2026-10-31
+(decision D-0002). This repository carries every rule that binds it and cites no other
+repository's files (decision D-0005): this file is the rules; `docs/DECISIONS.md` the
+decisions, `docs/POLICIES.md` the licences, the dependencies and the disclosure of the AI
+process, `docs/PROCESS.md` who decides and what a commit needs.
+
+EmiBSD is an experiment by Emilio Navarrete Lineros (enavarre@outlook.com), the maintainer:
+the OpenBSD kernel carried into Rust and a userland of its own; the code is written by Claude
+Code agents under written rules, and the maintainer takes every decision and approves every
+commit. Pre-alpha; boots only in QEMU on arm64. Site https://www.emibsd.org, organisation
+https://github.com/EmiBSD. Not affiliated with or endorsed by the OpenBSD, LLVM or Rust
+projects.
 
 Everything in this repository (code, comments, docs, commits) is in English. The user is
 answered in Spanish.
@@ -23,7 +33,7 @@ answered in Spanish.
   `OpenBSD-src` is not an input of this repository in any form. `tools/mirror.py check` verifies a pin exists on
   the mirror and on the origin with the same hash; pushing a tag to a mirror is the user's,
   from the main session.
-- **One LLVM (G-0015, 2026-10-31).** Upstream LLVM at `llvmorg-22.1.6`, from the fork, as
+- **One LLVM (D-0003, 2026-10-31).** Upstream LLVM at `llvmorg-22.1.6`, from the fork, as
   upstream ships it, built with its own CMake: the compiler of the C and C++ of the system and
   the backend rustc builds against (`llvm-config`; rustc 1.98.1 needs 21 or newer). No patch
   of anyone else's, no build glue of anyone else's; rustc's own LLVM submodule is not fetched.
@@ -35,7 +45,10 @@ answered in Spanish.
   user's decision; the watcher reports newer releases, never bumps.
 - **DevTools knows nothing of the consumers' internals.** It takes a sysroot (libc, crt,
   headers) as an input, by path or by pin, and publishes artifacts with SHA-256 sums. It
-  never reads `../Userland` or `../Kernel` source to decide anything.
+  never reads another repository's source, rules or logs to decide anything; the other
+  repositories are named here only as the consumers of the artifacts and the source of the
+  sysroot. A decision taken elsewhere that binds this repository is recorded in
+  `docs/DECISIONS.md` in its own words before it is acted on (D-0005).
 - **Nothing installed, nothing downloaded without the user's OK.** `just fetch` is the one
   sanctioned download and runs from the main session. The guard hook refuses installs,
   pushes, amends and writes under `upstream/`.
@@ -43,7 +56,19 @@ answered in Spanish.
   `tools/watch.py` daily: it compares each `UPSTREAM.toml`'s version with the upstream's
   latest release (version strings only, never sources) and opens one issue per outdated pin,
   labelled `upstream`. A pin moves only by the user's decision, in its own commit.
-- **Nothing GPL** enters the tree or the artifacts (`../Governance/policies/licences.md`).
+- **Nothing GPL** enters the tree or the artifacts; the licence table is in `docs/POLICIES.md`.
+- **Ours is ISC.** The build glue, the hooks, the documents and the patches are ISC
+  (`LICENSE`); a script or a patch of ours starts with the author's block, "Copyright (c) 2026
+  Emilio Navarrete Lineros", and nobody else's name replaces it.
+- **The maintainer decides, the agents propose.** A pin bump, a host, a target, a flag that
+  changes what the compiler emits, a patch, a dependency: handed back with the question,
+  never guessed (`docs/PROCESS.md`).
+- **arm64 first (D-0001).** Only `aarch64` is built, tested and released until the kernel
+  homologates amd64; the `X86` backend is compiled so that no rebuild is needed then.
+- **The target is EmiBSD's own (D-0004, not yet applied).** The toolchains are to emit for
+  `aarch64-unknown-emibsd`, carried as our patch series over the pins; until that series
+  exists the documents and glue still name `aarch64-unknown-openbsd`, the triple upstream
+  already carries for the same ABI.
 - Commit on the user's "dale", push on "súbelo"; never push otherwise.
 
 ## Directory map
@@ -52,7 +77,7 @@ answered in Spanish.
 llvm/      upstream LLVM from the fork: UPSTREAM.toml, DEFINITION, DESIGN, DELIVERY, STATUS, build/ (CMake), tests/
 rust/      rust-lang/rust: the same files; the cargo submodule pinned in UPSTREAM.toml
 tools/     upstream.py (fetch and check the pins), mirror.py (the mirrors against the origins), watch.py (newer releases), cve.py (NVD)
-docs/      TOOLCHAIN.md: hosts, targets, the stage0 chain, the artifact format
+docs/      TOOLCHAIN.md (hosts, targets, inputs and outputs, the chain, the artifact format), DECISIONS.md, POLICIES.md, PROCESS.md
 upstream/  the fetched sources (gitignored); target/ the builds; dist/ the artifacts
 .claude/   settings, rules/, hooks/agent-guard.sh
 ```
@@ -61,13 +86,13 @@ upstream/  the fetched sources (gitignored); target/ the builds; dist/ the artif
 
 | | Scope | Proof |
 |---|---|---|
-| T0 | the repository, the pins moved from Userland, the tools, the mirror check | `just fetch-check` and `just mirror-check` green |
-| T1 | upstream LLVM 22.1.6 built from the fork with CMake on the macOS host: stage 1 the host tools, stage 2 the target runtimes | a C and a C++ hello compiled for the target run under Kernel in QEMU |
-| T2 | rustc with `x.py`, macOS host, target `aarch64-unknown-openbsd`, Userland's sysroot | a static Rust hello runs under Kernel in QEMU |
-| T3 | GitHub releases: one tarball per host with `.sha256`; consumers fetch by pin | Userland's `just toolchain` installs it |
-| T4 | self-hosted: rustc built on EmiBSD with T3 as stage0 | after Kernel's N9 |
+| T0 | the repository, the pins moved from the userland repository, the tools, the mirror check | `just fetch-check` and `just mirror-check` green; met 2026-10-31 |
+| T1 | upstream LLVM 22.1.6 built from the fork with CMake on the macOS host: stage 1 the host tools, stage 2 the target runtimes | a C and a C++ hello compiled for the target run under the EmiBSD kernel in QEMU |
+| T2 | rustc with `x.py`, macOS host, target `aarch64-unknown-openbsd` (D-0004 renames it), the userland's sysroot | a static Rust hello runs under the EmiBSD kernel in QEMU |
+| T3 | GitHub releases: one tarball per host with `.sha256`; consumers fetch by pin | a consumer's toolchain recipe installs it from the release |
+| T4 | self-hosted: rustc built on EmiBSD with T3 as stage0 | after the kernel's N9, when no inherited tree is left |
 
-`docs/TOOLCHAIN.md` is the plan in detail; `../Governance/docs/architecture.md` the picture.
+`docs/TOOLCHAIN.md` is the plan in detail, with the picture of where the repository sits.
 
 ## Working
 
@@ -89,5 +114,6 @@ upstream/  the fetched sources (gitignored); target/ the builds; dist/ the artif
 ## Rules
 
 `.claude/rules/imported.md` (what an imported toolchain may and may not do here) and
-`.claude/rules/subagents.md` (the roles, when they exist) are the detail; this file points
-at them.
+`.claude/rules/subagents.md` (the contract of the roles, when they exist) are the detail;
+`docs/DECISIONS.md`, `docs/POLICIES.md` and `docs/PROCESS.md` are the project's rules as
+they apply here. This file points at them; nothing points outside the repository.

@@ -14,12 +14,12 @@
 # ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 # OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 #
-# PreToolUse hook of the writing subagents (designer, implementer, mechanical,
-# integrator; the `hooks:` field of their frontmatter). It makes mechanical what
-# `.claude/rules/subagents.md` says in words: a subagent never pushes, never
-# amends, never forces, never writes under `upstream/` or under a `reference/`
-# tree (the Kernel's pinned clone of another system), never cds into either, and never installs
-# or downloads anything (`cargo install`, `rustup`, `brew`, `pip`, `npm`,
+# PreToolUse hook of the writing subagents (the `hooks:` field of their
+# frontmatter). It makes mechanical what `.claude/rules/subagents.md` says in
+# words: a subagent never pushes, never amends, never forces, never writes under
+# `upstream/` (the fetched toolchain sources) or under a `reference/` tree (a
+# pinned clone of another system, should one ever exist here), never cds into
+# either, and never installs or downloads anything (`cargo install`, `rustup`, `brew`, `pip`, `npm`,
 # `curl`, `wget`). Exit 2 refuses the call and hands the reason to the agent;
 # anything else exits 0 at once. The main session has no such hook: pushing,
 # installing and fetching are the user's, done from there on their word. A belt

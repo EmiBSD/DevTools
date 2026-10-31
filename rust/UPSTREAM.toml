@@ -22,7 +22,7 @@ repo    = "https://github.com/EmiBSD/cargo"
 origin  = "https://github.com/rust-lang/cargo"
 commit  = "797e8a9bca276c1c9f9f738d2a20f484fa4eea9d"
 
-# One LLVM (Governance G-0015, 2026-10-31): rustc is built against llvm/'s LLVM through
+# One LLVM (decision D-0003, 2026-10-31): rustc is built against llvm/'s LLVM through
 # `llvm-config` (`[target.*] llvm-config` in x.py's config.toml, `llvm.download-ci-llvm = false`),
 # as distributions build it against a system LLVM; rustc 1.98.1 requires LLVM >= 21
 # (src/bootstrap/src/core/build_steps/llvm.rs, check_llvm_version). Its own src/llvm-project

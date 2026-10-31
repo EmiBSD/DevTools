@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""The CVE history of a program from NVD, as rows for DEFINITION.md's Security history.
+"""The CVE history of a toolchain from NVD, as rows for DEFINITION.md's Security history.
 
-usage: cve.py <program dir> [--since YEAR] [--json]
+usage: cve.py <toolchain dir> [--since YEAR] [--json]
 
-Reads the CPE: `[security] cpe` of UPSTREAM.toml for an imported program, or the
-`cpe = "vendor:product"` line of a written program's DEFINITION.md (the CPE of its namesakes,
-e.g. `cpe = "openbsd:openbsd"` with a `cve-keyword = "grep"` to narrow). Queries NVD's API 2.0
+Reads the CPE: `[security] cpe` of the directory's UPSTREAM.toml, or, failing that, the
+`cpe = "vendor:product"` line of its DEFINITION.md (with an optional `cve-keyword = "..."`
+to narrow the search). Queries NVD's API 2.0
 (network; set NVD_API_KEY for the higher rate limit), caches the raw answer under
-target/cve/<program>.json, and prints Markdown rows: CVE, year, CVSS, class (the CWE), summary.
+target/cve/<toolchain>.json, and prints Markdown rows: CVE, year, CVSS, class (the CWE), summary.
 Stdlib only. Run only with the user's OK: it uses the network.
 """
 import json
@@ -38,7 +38,7 @@ def cpe_of(prog: Path):
 
 def fetch(params: dict) -> dict:
     out, start = {"vulnerabilities": []}, 0
-    headers = {"User-Agent": "EmiBSD-Userland tools/cve.py"}
+    headers = {"User-Agent": "EmiBSD-DevTools tools/cve.py"}
     if os.environ.get("NVD_API_KEY"):
         headers["apiKey"] = os.environ["NVD_API_KEY"]
     while True:
