@@ -60,10 +60,9 @@ def install_tree(name, host):
 
 def manifest(name, toml, version, host, epoch):
     up = toml["upstream"]
-    try:
-        tag = run("git", "describe", "--tags", "--exact-match", "HEAD", cwd=ROOT)
-    except subprocess.CalledProcessError:
-        tag = "none (snapshot)"
+    # The tag of this toolchain among those on HEAD (llvm's and rust's may share a commit).
+    tags = [t for t in run("git", "tag", "--points-at", "HEAD", cwd=ROOT).splitlines() if t.startswith(f"{name}-")]
+    tag = tags[0] if tags else "none (snapshot)"
     lines = [f"name: {name}", f"version: {version}", f"host: {host}",
              f"commit: {run('git', 'rev-parse', 'HEAD', cwd=ROOT)}", f"tag: {tag}",
              f"date: {datetime.fromtimestamp(epoch, timezone.utc).isoformat()}",

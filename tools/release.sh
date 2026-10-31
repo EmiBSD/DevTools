@@ -27,7 +27,7 @@ cd "$(dirname "$0")/.."
 name=${1:?llvm or rust}
 version=$(sed -n 's/^version *= *"\([^"]*\)".*/\1/p' "$name/UPSTREAM.toml")
 tag="$name-$version"
-[ "$(git describe --tags --exact-match HEAD 2>/dev/null)" = "$tag" ] \
+git tag --points-at HEAD | grep -qx "$tag" \
     || { echo "release: HEAD is not tagged $tag (git tag -a $tag -m '...' first; a release is cut from a tagged commit)" >&2; exit 1; }
 set -- dist/"$name-$version"-*.tar.zst
 [ -f "$1" ] || { echo "release: no artifact in dist/ for $name $version (just dist $name)" >&2; exit 1; }
