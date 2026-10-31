@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(just *)",
+      "Bash(python3 -I tools/*)",
+      "Bash(git ls-remote *)"
+    ],
+    "deny": [
+      "Bash(git push --force*)",
+      "Bash(git push -f*)",
+      "Bash(git commit --amend*)",
+      "Bash(cargo install *)",
+      "Bash(rustup *)",
+      "Bash(brew *)"
+    ]
+  }
+}

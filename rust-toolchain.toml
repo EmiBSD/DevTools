@@ -1,0 +1,5 @@
+# The host toolchain the build glue runs under and the stage0 of `rust/` on the host.
+# Stable, pinned; bumping is its own commit ("tools: bump host toolchain to <version>").
+[toolchain]
+channel = "1.98.1"
+profile = "minimal"
