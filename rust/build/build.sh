@@ -53,8 +53,10 @@ pin=$(cat "$UP/.pin")
 STAGE0_RUSTC=$(rustup which rustc)
 STAGE0_CARGO=$(rustup which cargo)
 HOST=$("$STAGE0_RUSTC" -vV | sed -n 's/^host: //p')
-LLVM=$ROOT/target/llvm/$(cc -dumpmachine 2>/dev/null || echo host)
-[ -x "$LLVM/bin/llvm-config" ] || { echo "build: $LLVM/bin/llvm-config missing: just build llvm first" >&2; exit 1; }
+LLVM=$ROOT/target/llvm/$(cc -dumpmachine 2>/dev/null || echo host)     # T1's install: clang, lld, the binutils
+LLVM_CONFIG=$ROOT/target/llvm/host/bin/llvm-config                     # T1's build tree: the libraries rustc links, and the tools it ships
+[ -x "$LLVM/bin/clang" ] || { echo "build: $LLVM/bin/clang missing: just build llvm first" >&2; exit 1; }
+[ -x "$LLVM_CONFIG" ] || { echo "build: $LLVM_CONFIG missing: just build llvm first" >&2; exit 1; }
 KERNEL_TARGET=aarch64-unknown-none-softfloat          # the kernel's: core and alloc, no std (D-0006)
 TARGET=aarch64-emibsd-emibsd                          # the system's (D-0004, patches/): std, against the sysroot
 TARGETS="\"$HOST\", \"$KERNEL_TARGET\", \"$TARGET\""
@@ -189,7 +191,7 @@ llvm-tools = true
 lld = false
 
 [target.$HOST]
-llvm-config = "$LLVM/bin/llvm-config"
+llvm-config = "$LLVM_CONFIG"
 
 [target.$KERNEL_TARGET]
 cc = "$LLVM/bin/clang"

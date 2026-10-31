@@ -22,9 +22,14 @@ bad() { echo "check.sh: $*" >&2; fail=1; }
 cc="$prefix/bin/clang"
 cxx="$prefix/bin/clang++"
 readelf="$prefix/bin/llvm-readelf"
-for p in bin/clang bin/clang++ bin/ld.lld bin/llvm-ar bin/llvm-ranlib bin/llvm-nm bin/llvm-objcopy \
-         bin/llvm-objdump bin/llvm-readelf bin/llvm-strip bin/llvm-config bin/llvm-tblgen bin/clang-tblgen; do
+for p in bin/clang bin/clang++ bin/clang-cpp bin/ld.lld bin/llvm-ar bin/llvm-ranlib bin/llvm-nm bin/llvm-objcopy \
+         bin/llvm-objdump bin/llvm-readobj bin/llvm-readelf bin/llvm-strip bin/llvm-size bin/llvm-strings \
+         bin/llvm-symbolizer bin/llvm-addr2line bin/llvm-cxxfilt bin/llvm-dwarfdump bin/llvm-cov bin/llvm-profdata; do
     [ -x "$prefix/$p" ] || bad "missing $p"
+done
+# A toolchain, not LLVM's development kit (DESIGN.md: LLVM_DISTRIBUTION_COMPONENTS).
+for p in bin/llc bin/opt bin/clang-repl bin/llvm-config lib/libLLVMCore.a include/llvm; do
+    [ ! -e "$prefix/$p" ] || bad "$p installed: not of the distribution"
 done
 [ "$fail" = 0 ] || exit 1
 

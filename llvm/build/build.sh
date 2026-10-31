@@ -7,8 +7,10 @@
 # 1. target/llvm/src: the fetched source copied (APFS clones: instant) and the series
 #    applied with patch -p1; made again when the pin, the paths or the series changed
 #    (.emibsd-src).
-# 2. target/llvm/host, installed under target/llvm/<host>: clang, lld and the tools for
-#    this machine, emitting for aarch64-emibsd-emibsd8.0 by default.
+# 2. target/llvm/host, installed under target/llvm/<host>: clang, lld and the tools of a
+#    toolchain for this machine (DISTRIBUTION below, LLVM's own mechanism for a system that
+#    ships LLVM), emitting for aarch64-emibsd-emibsd8.0 by default. The build tree keeps
+#    everything LLVM builds; rustc's build takes its llvm-config from there.
 # 3. target/llvm/builtins, then target/llvm/runtimes, installed under the same prefix in
 #    lib/clang/<major>/lib/<triple>/, lib/<triple>/ and include/<triple>/: compiler-rt's
 #    builtins first, then libunwind, libc++abi and libc++ for the target, compiled by
@@ -35,6 +37,10 @@ VERSION=$(python3 -I -c 'import sys,tomllib; print(tomllib.load(open(sys.argv[1]
 JOBS=${COMP_JOBS:-6}
 OUT=target/llvm
 PREFIX=$ROOT/$OUT/$HOST
+# What the install carries (LLVM_DISTRIBUTION_COMPONENTS, DESIGN.md): the compiler and its
+# builtin headers, the linker (ld.lld comes with lld), and the binutils a system build uses;
+# the symlinked names (ranlib, strip, readelf, addr2line) are components of their own.
+DISTRIBUTION="clang;clang-resource-headers;lld;llvm-ar;llvm-ranlib;llvm-nm;llvm-objcopy;llvm-strip;llvm-objdump;llvm-readobj;llvm-readelf;llvm-size;llvm-strings;llvm-symbolizer;llvm-addr2line;llvm-cxxfilt;llvm-dwarfdump;llvm-cov;llvm-profdata"
 
 # 1. The source copy, patched.
 series=$(python3 -I -c 'import sys,tomllib; print(" ".join(tomllib.load(open(sys.argv[1],"rb"))["patches"]["series"]))' llvm/UPSTREAM.toml)
@@ -67,11 +73,11 @@ cmake -G Ninja -S "$SRC/llvm" -B "$OUT/host" \
     -DLLVM_TARGETS_TO_BUILD="AArch64;X86" \
     -DLLVM_DEFAULT_TARGET_TRIPLE="$TRIPLE" \
     -DLLVM_ENABLE_ASSERTIONS=OFF \
-    -DLLVM_INSTALL_UTILS=ON \
     -DLLVM_ENABLE_ZSTD=OFF \
+    -DLLVM_DISTRIBUTION_COMPONENTS="$DISTRIBUTION" \
     -DLLVM_INCLUDE_TESTS=OFF -DLLVM_INCLUDE_BENCHMARKS=OFF -DLLVM_INCLUDE_DOCS=OFF \
     -DCLANG_INCLUDE_TESTS=OFF
-ninja -C "$OUT/host" -j "$JOBS" install
+ninja -C "$OUT/host" -j "$JOBS" install-distribution
 
 # Stage 2, as upstream's own runtimes bootstrap does it (llvm/runtimes/CMakeLists.txt):
 # first compiler-rt's builtins alone, telling CMake the compilers work (its link test

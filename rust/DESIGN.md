@@ -53,7 +53,7 @@ The plan of T2 (the maintainer, 2026-10-31, D-0006), in three slices:
 | `rust.jemalloc` | `false` | the system's malloc |
 | `rust.llvm-tools` | `true` | `llvm-tools` component from `llvm/`'s LLVM, as rustup ships it |
 | `rust.lld` | `false` | the linker is `llvm/`'s lld through its clang driver, not a bundled `rust-lld` |
-| `target.<host>.llvm-config` | `target/llvm/<host>/bin/llvm-config` | rustc's backend is `llvm/`'s LLVM (D-0003) |
+| `target.<host>.llvm-config` | `target/llvm/host/bin/llvm-config`, T1's build tree | rustc's backend is `llvm/`'s LLVM (D-0003); the build tree, not the install, because the install is a toolchain (`LLVM_DISTRIBUTION_COMPONENTS`, `llvm/DESIGN.md`) with no LLVM libraries, headers or `llc`, and rustc links the libraries and ships the tools (`llvm-tools`) |
 | `target.aarch64-unknown-none-softfloat.cc`, `.ar` | `llvm/`'s clang and llvm-ar | the C sources of `compiler_builtins` for the kernel's target |
 | `target.aarch64-emibsd-emibsd.cc`, `.cxx`, `.linker`, `.ar`, `.ranlib`, `.rustflags = -C link-arg=--sysroot=$EMIBSD_SYSROOT`; `CFLAGS_aarch64_emibsd_emibsd=--sysroot=$EMIBSD_SYSROOT` | `llvm/`'s clang, clang++, llvm-ar, llvm-ranlib | the system's target is compiled and linked by the system's own toolchain (T1) against the sysroot; a Rust program for it is linked with `-C linker=<that clang> -C link-arg=--sysroot=...` |
 

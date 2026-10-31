@@ -11,8 +11,9 @@
 1. **Stage 1, the host tools.** `cmake -S target/llvm/src/llvm -B target/llvm/host`
    with `LLVM_ENABLE_PROJECTS=clang;lld`, `LLVM_TARGETS_TO_BUILD=AArch64;X86`,
    `LLVM_DEFAULT_TARGET_TRIPLE=aarch64-emibsd-emibsd8.0`, `CMAKE_BUILD_TYPE=Release`,
-   `LLVM_ENABLE_ASSERTIONS=OFF`, `LLVM_INSTALL_UTILS=ON`; installed into
-   `target/llvm/<host>/`. This is what rustc's `llvm-config` points at.
+   `LLVM_ENABLE_ASSERTIONS=OFF`; the distribution (`LLVM_DISTRIBUTION_COMPONENTS`, below)
+   installed into `target/llvm/<host>/` with `install-distribution`. The build tree
+   `target/llvm/host/` keeps everything LLVM builds; rustc's `llvm-config` points there.
 2. **Stage 2, the target runtimes**, in the two passes upstream's own runtimes bootstrap
    makes (`llvm/runtimes/CMakeLists.txt`), because CMake's compiler test links, and the link
    needs the builtins that this stage produces. **2a**: `cmake -S
@@ -33,7 +34,9 @@
    the ELF each must be (`DESIGN.md` of the kernel's loader, in a word: PIE, OS/ABI byte 12,
    `PT_OPENBSD_RANDOMIZE`, BTI). That they run is the kernel repository's smoke, T1's proof.
 
-The install tree is the artifact (T3): `bin/`, `lib/`, `include/`, `lib/clang/22/`.
+The install tree is the artifact (T3): `bin/` (the distribution), `lib/clang/22/` (the
+builtin headers and the target's builtins), `lib/<triple>/` and `include/<triple>/` (the
+target's runtimes and libc++'s headers).
 
 Flags that differ from upstream's defaults, with the reason:
 
@@ -47,6 +50,7 @@ Flags that differ from upstream's defaults, with the reason:
 | `LLVM_TARGETS_TO_BUILD` | `AArch64;X86` | arm64 now, amd64 when it returns (decision D-0001); nothing else |
 | `COMPILER_RT_BUILD_*` | sanitizers, xray, fuzzer, profile off | only the builtins and the runtimes the system links |
 | `LLVM_ENABLE_ASSERTIONS` | `OFF` | a release compiler; assertions are for developing LLVM |
+| `LLVM_DISTRIBUTION_COMPONENTS` | clang and its resource headers, lld, `llvm-ar`, `llvm-ranlib`, `llvm-nm`, `llvm-objcopy`, `llvm-strip`, `llvm-objdump`, `llvm-readobj`, `llvm-readelf`, `llvm-size`, `llvm-strings`, `llvm-symbolizer`, `llvm-addr2line`, `llvm-cxxfilt`, `llvm-dwarfdump`, `llvm-cov`, `llvm-profdata` (`DISTRIBUTION` in `build.sh`) | a plain `install` is LLVM's development kit: 131 programs (`llc`, `opt`, `clang-repl`, the GPU wrappers, `bugpoint`...), the LLVM and clang static libraries and headers, 2.2 GB, each tool linked statically against LLVM as upstream links them; `LLVM_DISTRIBUTION_COMPONENTS` is the mechanism upstream gives a system that ships LLVM (its `clang/cmake/caches/` are examples), and the list is what a system build uses: the compiler, the linker and the binutils, about 300 MB, the same binaries linked the same way; nothing is built differently. rustc's build reads the build tree. The tools stay statically linked against LLVM: a toolchain that depends on a shared `libLLVM` breaks with it |
 
 Everything else is upstream's default.
 
