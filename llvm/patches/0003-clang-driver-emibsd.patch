@@ -2,7 +2,7 @@ clang: the EmiBSD toolchain driver
 
 Why a patch: the driver must know how the system links and what it defaults to.
 ToolChains/EmiBSD.{h,cpp} (new, ISC) are the toolchain: PIE by default, rcrt0.o
-for a static PIE, gcrt0.o for -pg, crtbegin/crtend from the sysroot's /usr/lib,
+for a static PIE (-static, or -static-pie as rustc asks), gcrt0.o for -pg, crtbegin/crtend from the sysroot's /usr/lib,
 the entry __start, --eh-frame-hdr, /usr/libexec/ld.so, lld, compiler-rt's
 builtins before and after -lc, libc++ with libc++abi and libunwind, the strong
 stack protector, asynchronous unwind tables, /usr/include of the sysroot and nothing
@@ -139,7 +139,7 @@ Navarrete Lineros, 2026-10-31.
    case llvm::Triple::Emscripten:
    case llvm::Triple::FreeBSD:
    case llvm::Triple::Fuchsia:
---- a/clang/lib/Driver/ToolChains/EmiBSD.h
+--- /dev/null
 +++ b/clang/lib/Driver/ToolChains/EmiBSD.h
 @@ -0,0 +1,117 @@
 +//===--- EmiBSD.h - EmiBSD ToolChain Implementations ------------*- C++ -*-===//
@@ -259,9 +259,9 @@ Navarrete Lineros, 2026-10-31.
 +} // end namespace clang
 +
 +#endif // LLVM_CLANG_LIB_DRIVER_TOOLCHAINS_EMIBSD_H
---- a/clang/lib/Driver/ToolChains/EmiBSD.cpp
+--- /dev/null
 +++ b/clang/lib/Driver/ToolChains/EmiBSD.cpp
-@@ -0,0 +1,206 @@
+@@ -0,0 +1,211 @@
 +//===--- EmiBSD.cpp - EmiBSD ToolChain Implementations ----------*- C++ -*-===//
 +//
 +// Copyright (c) 2026 Emilio Navarrete Lineros <enavarre@outlook.com>
@@ -305,7 +305,10 @@ Navarrete Lineros, 2026-10-31.
 +                                  const char *LinkingOutput) const {
 +  const auto &ToolChain = static_cast<const EmiBSD &>(getToolChain());
 +  const Driver &D = ToolChain.getDriver();
-+  const bool Static = Args.hasArg(options::OPT_static);
++  // -static-pie (what rustc asks for a static PIE) is -static here: every static
++  // executable of the system is a PIE through rcrt0.o.
++  const bool Static =
++      Args.hasArg(options::OPT_static) || Args.hasArg(options::OPT_static_pie);
 +  const bool Shared = Args.hasArg(options::OPT_shared);
 +  const bool Profiling = Args.hasArg(options::OPT_pg);
 +  const bool Nopie = Args.hasArg(options::OPT_no_pie, options::OPT_nopie);
@@ -317,6 +320,8 @@ Navarrete Lineros, 2026-10-31.
 +  Args.ClaimAllArgs(options::OPT_g_Group);
 +  Args.ClaimAllArgs(options::OPT_emit_llvm);
 +  Args.ClaimAllArgs(options::OPT_w);
++  // PIE is the default: -pie asks for what is given (rustc passes it for every executable).
++  Args.ClaimAllArgs(options::OPT_pie);
 +
 +  if (!D.SysRoot.empty())
 +    CmdArgs.push_back(Args.MakeArgString("--sysroot=" + D.SysRoot));
