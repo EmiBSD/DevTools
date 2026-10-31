@@ -35,17 +35,20 @@ The plan of T2 (the maintainer, 2026-10-31, D-0006), in three slices:
 | `build.rustc`, `build.cargo` | the host's pinned 1.98.1 (`rustup which`) | stage0 without the download of `src/stage0`'s beta; real paths, because the rustup proxies pick a toolchain by the directory x.py runs cargo in |
 | `build.local-rebuild` | `true` | stage0 is the same version as the source, not the previous beta |
 | `build.submodules` | `false` | the submodules come from the mirrors at the pins; x.py never runs git against upstream URLs |
-| `build.vendor`, `build.locked-deps` | `true` | cargo reads `.cargo/config.toml` of the copy, which points at `upstream/rust-vendor/`; `--frozen`: nothing resolves anew |
+| `build.vendor`, `build.locked-deps` | `true` | cargo reads `.cargo/config.toml` of the copy (and `library/.cargo/config.toml`, the tarball's layout), which point at `vendor/` inside the copy: the crates `just fetch` vendored into `upstream/rust-vendor/`, copied in writable, because build scripts copy files with `fs::copy` keeping upstream's read-only mode and then cannot overwrite their own copy (`libnghttp2-sys`), and because the `rust-src` step prunes the vendor directory it is pointed at; `--frozen`: nothing resolves anew |
 | `build.target` | the host, `aarch64-unknown-none-softfloat` (slice 2: `aarch64-emibsd-emibsd`) | the kernel's target gets `core` and `alloc` from here (D-0006); the system's target gets `std` |
 | `build.extended`, `build.tools` | `true`; `cargo`, `clippy`, `rustfmt`, `src` | what the kernel's `rust-toolchain.toml` asks of a toolchain; `llvm-tools` come from `llvm/` |
 | `build.docs`, `build.compiler-docs` | `false` | not shipped |
-| `build.optimized-compiler-builtins` | the path of `target/llvm/src/compiler-rt` | the C builtins from the pinned, patched LLVM source rather than the unfetched `src/llvm-project` submodule |
+| `build.optimized-compiler-builtins` | `true`, with `src/llvm-project/compiler-rt` (and `libunwind`, which the `rust-src` component ships) linked to `target/llvm/src/` | the C builtins compiled from the pinned, patched LLVM source of `llvm/`; the `src/llvm-project` submodule itself is never fetched (D-0003); a path value would mean a prebuilt library, which T1 does not build for the host |
 | `build.patch-binaries-for-nix` | `false` | not Nix |
-| `install.prefix` | `target/rust/<host>/` | the artifact's tree |
+| `build.cargo-native-static` | `true` | cargo built with its `all-static` feature, as the official binaries are: OpenSSL from the vendored `openssl-src` (Apache-2.0), curl and libgit2 static; without it `openssl-sys` found Homebrew's OpenSSL and cargo loaded `/opt/homebrew/opt/openssl@4/lib/libssl.4.dylib`, which `tests/check.sh` refuses |
+| `change-id` | `ignore` | bootstrap's reminder for people who edit its options by hand; this file is written by the glue from DESIGN.md |
+| `git-commit-info`, `git-commit-hash` in the copy | the pin's commit, short hash and date | what upstream's source tarball carries: bootstrap then treats the tree as a release source, demands no submodule (`generate-copyright` would ask for the documentation ones) and stamps `rustc --version` with the commit, as the official build does |
+| `install.prefix` | `target/rust/install-<host>/` | the artifact's tree; not named after the host tuple, which rustc's sysroot derivation takes for `lib/rustlib/<host>/lib` and answers three directories up |
 | `llvm.download-ci-llvm` | `false` | one LLVM (D-0003) |
 | `llvm.link-shared` | `false` | rustc carries its LLVM statically, as the T1 install provides the static libraries |
 | `rust.channel` | `stable` | the source is a stable release; nightly features stay off |
-| `rust.description` | `EmiBSD DevTools` | `rustc --version` says where it came from |
+| `build.description` | `EmiBSD DevTools` | `rustc --version` says where it came from |
 | `rust.download-rustc` | `false` | nothing downloaded |
 | `rust.jemalloc` | `false` | the system's malloc |
 | `rust.llvm-tools` | `true` | `llvm-tools` component from `llvm/`'s LLVM, as rustup ships it |
@@ -56,8 +59,9 @@ The plan of T2 (the maintainer, 2026-10-31, D-0006), in three slices:
 ## Licences of the vendored crates (docs/POLICIES.md)
 
 `tools/crates.py` (`just crates rust`, part of `just check`) reads every crate of
-`upstream/rust-vendor/`: 978 at 1.98.1, nothing GPL (`self_cell` is Apache-2.0 OR
-GPL-2.0-only; the Apache side applies). Six are MPL-2.0, the family POLICIES.md admits with a
+`upstream/rust-vendor/`: 1,192 at 1.98.1 over the eight workspaces the tree carries, nothing GPL
+(`self_cell` is Apache-2.0 OR GPL-2.0-only; the Apache side applies; the GCC backend's
+`gccjit` crates, GPL-3.0, stay out with the backend itself, `UPSTREAM.toml`'s `path`). Six are MPL-2.0, the family POLICIES.md admits with a
 written reason, which is this: MPL-2.0 is a file-level copyleft, it obliges to keep the source
 of those files available under MPL, which the vendor directory, made from the release's
 `Cargo.lock` by `just fetch`, does; it reaches none of our code nor the toolchains'.
@@ -70,7 +74,12 @@ of those files available under MPL, which the vendor directory, made from the re
 ## Patches
 
 One line per patch of `patches/`: what it changes and why it could not stay upstream.
-None yet: slice 2 of T2 writes the series of the target (D-0004).
+
+| Patch | What |
+|---|---|
+| `0001-bootstrap-vendor-what-is-there` | bootstrap's `default_paths_to_vendor` keeps only the workspaces whose manifest and required submodules are in the tree: `generate-copyright` (run by `dist::Rustc` for the COPYRIGHT files) scans that list with `cargo metadata` and failed on the documentation books and `rustc-perf`, submodules this tree does not carry; the build glue, nothing of what the compiler emits |
+
+The target's series (D-0004) is slice 2 of T2.
 
 ## Concurrency
 

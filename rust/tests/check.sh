@@ -35,6 +35,14 @@ for p in bin/rustc bin/cargo bin/rustdoc bin/clippy-driver bin/cargo-clippy bin/
 done
 [ "$fail" = 0 ] || exit 1
 
+# The host tools carry nothing of Homebrew: the artifact runs on a Mac that has none.
+case $(uname) in Darwin)
+    for b in "$prefix"/bin/* "$prefix"/lib/*.dylib; do
+        [ -L "$b" ] && continue
+        otool -L "$b" 2>/dev/null | grep -q /opt/homebrew && bad "$(basename "$b") loads a Homebrew library: $(otool -L "$b" | grep /opt/homebrew | head -1)"
+    done ;;
+esac
+
 # The compiler says who it is, for which host, and which LLVM it carries (llvm/'s, T1).
 vv=$("$rustc" -vV)
 echo "$vv" | grep -q "^rustc $version" || bad "rustc -vV does not say $version: $(echo "$vv" | head -1)"

@@ -1,0 +1,32 @@
+bootstrap: vendor and generate-copyright scan the workspaces the tree carries
+
+Why a patch: default_paths_to_vendor lists every cargo workspace of the
+monorepo, including the documentation books (src/tools/rustbook with
+src/doc/book and src/doc/reference, src/doc/book/packages/trpl) and
+src/tools/rustc-perf, which are git submodules. DevTools' source tree is
+the release at the pin with the submodules the build needs (cargo,
+backtrace) and nothing else (D-0003, D-0006), marked as a release source
+with git-commit-info; generate-copyright, run by dist::Rustc for the
+COPYRIGHT files, runs `cargo metadata` over that whole list and fails on
+the first workspace that is not there. This keeps only the workspaces
+whose manifest exists and whose required submodules are checked out, so
+the COPYRIGHT files cover what is actually built. Nothing of what the
+compiler emits changes. Written by EmiBSD (ISC); carried by DevTools over
+the pinned tag, offered upstream when stable. Author: Emilio Navarrete
+Lineros, 2026-10-31.
+
+--- a/src/bootstrap/src/core/build_steps/vendor.rs
++++ b/src/bootstrap/src/core/build_steps/vendor.rs
+@@ -33,6 +33,12 @@
+     ]
+     .into_iter()
+     .map(|(path, submodules)| (builder.src.join(path), submodules))
++    // Only the workspaces this tree carries: a release source may leave out the
++    // submodules the build does not need (the documentation books, rustc-perf).
++    .filter(|(path, submodules)| {
++        path.exists()
++            && submodules.iter().all(|s| !crate::utils::helpers::dir_is_empty(&builder.src.join(s)))
++    })
+     .collect()
+ }
+ 

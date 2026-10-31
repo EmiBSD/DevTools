@@ -20,13 +20,13 @@
 #   sh rust/build/build.sh            (`just build rust`; EMIBSD_SYSROOT set; COMP_JOBS)
 #
 # 1. target/rust/src: the fetched source copied (APFS clones: instant), the series applied
-#    with patch -p1, and .cargo/config.toml pointing cargo at upstream/rust-vendor, the
-#    crates `just fetch` vendored: nothing is downloaded. Made again when the pin or the
+#    with patch -p1, the crates `just fetch` vendored copied in as vendor/ and the two
+#    .cargo/config.toml pointing cargo at them: nothing is downloaded. Made again when the pin or the
 #    series changed (.emibsd-src).
 # 2. target/rust/build: x.py install with target/rust/config.toml: stage0 the host's pinned
 #    rustc and cargo (rust-toolchain.toml), llvm-config from llvm/'s install (T1), rustc,
 #    cargo, clippy, rustfmt and the sources for the host, std for the host, core and alloc
-#    for the kernel's target; installed under target/rust/<host>/, a directory
+#    for the kernel's target; installed under target/rust/install-<host>/, a directory
 #    `rustup toolchain link` accepts.
 # 3. tests/check.sh over the result.
 #
@@ -38,8 +38,9 @@ UP=upstream/rust
 SRC=target/rust/src
 OUT=target/rust
 [ -f "$UP/.pin" ] || { echo "build: $UP not fetched (just fetch)" >&2; exit 1; }
-VENDOR=$ROOT/upstream/rust-vendor
-[ -f "$VENDOR/.pin" ] || { echo "build: $VENDOR not vendored (just fetch)" >&2; exit 1; }
+VENDOR_SRC=$ROOT/upstream/rust-vendor            # what just fetch vendored, read-only
+VENDOR=$ROOT/$SRC/vendor                           # its copy inside the source copy, writable: what cargo reads
+[ -f "$VENDOR_SRC/.pin" ] || { echo "build: $VENDOR_SRC not vendored (just fetch)" >&2; exit 1; }
 for t in python3 cmake ninja rustup; do command -v $t >/dev/null || { echo "build: $t not found (the user's install)" >&2; exit 1; }; done
 pin=$(cat "$UP/.pin")
 [ "$pin" = "$(python3 -I -c 'import sys,tomllib; print(tomllib.load(open(sys.argv[1],"rb"))["upstream"]["commit"])' rust/UPSTREAM.toml)" ] \
@@ -57,12 +58,16 @@ LLVM=$ROOT/target/llvm/$(cc -dumpmachine 2>/dev/null || echo host)
 KERNEL_TARGET=aarch64-unknown-none-softfloat          # the kernel's: core and alloc, no std (D-0006)
 TARGETS="\"$HOST\", \"$KERNEL_TARGET\""
 JOBS=${COMP_JOBS:-6}
-PREFIX=$ROOT/$OUT/$HOST
+# Not named after the host tuple: rustc derives its sysroot from its dylib's directory and
+# takes a directory so named for lib/rustlib/<host>/lib, three levels deeper than it is.
+PREFIX=$ROOT/$OUT/install-$HOST
 
 # 1. The source copy, patched, pointed at the vendored crates.
 series=$(python3 -I -c 'import sys,tomllib; print(" ".join(tomllib.load(open(sys.argv[1],"rb"))["patches"]["series"]))' rust/UPSTREAM.toml)
+paths=$(python3 -I -c 'import sys,tomllib; print(" ".join(tomllib.load(open(sys.argv[1],"rb"))["upstream"]["path"]))' rust/UPSTREAM.toml)
 stamp="pin $pin
-vendor $(cat "$VENDOR/.pin")
+paths $paths
+vendor $(cat "$VENDOR_SRC/.pin")
 series $series"
 for p in $series; do stamp="$stamp
 $(shasum -a 256 "rust/patches/$p")"; done
@@ -74,24 +79,60 @@ if [ ! -f "$SRC/.emibsd-src" ] || [ "$(cat "$SRC/.emibsd-src")" != "$stamp" ]; t
     cp -c -R "$UP/" "$SRC" 2>/dev/null || cp -R "$UP/" "$SRC"
     chmod -R u+w "$SRC"
     find "$SRC" -name .git -prune -exec rm -rf {} +
+    # The vendored crates, copied too: build scripts copy files with fs::copy, which keeps
+    # the read-only mode of upstream/ and then cannot overwrite its own copy (libnghttp2-sys);
+    # and bootstrap's rust-src step prunes the vendor directory it is pointed at.
+    cp -c -R "$VENDOR_SRC" "$VENDOR" 2>/dev/null || cp -R "$VENDOR_SRC" "$VENDOR"
+    chmod -R u+w "$VENDOR"
     for p in $series; do
         echo "== patch: $p"
         patch -p1 -d "$SRC" -s -N < "rust/patches/$p"
     done
-    mkdir -p "$SRC/.cargo"
-    cat > "$SRC/.cargo/config.toml" <<CARGO
+    printf '%s\n' "$stamp" > "$SRC/.emibsd-src"
+fi
+# As the official source tarball lays it out: one cargo config at the root, one in library/
+# (the rust-src component's vendoring names the latter by path). Written before every build:
+# that component copies library/ with hard links and rewrites the latter to the tarball's
+# relative `vendor`, which must not point back into the read-only vendor directory.
+for d in "$SRC" "$SRC/library"; do
+    mkdir -p "$d/.cargo"
+    cat > "$d/.cargo/config.toml" <<CARGO
 # Written by rust/build/build.sh: cargo reads crates.io from what just fetch vendored.
 [source.crates-io]
 replace-with = "vendored-sources"
 [source.vendored-sources]
 directory = "$VENDOR"
 CARGO
-    printf '%s\n' "$stamp" > "$SRC/.emibsd-src"
+done
+# An older copy may still carry the vendor as a link into upstream/: replaced by the copy.
+if [ -L "$VENDOR" ] || [ ! -d "$VENDOR" ]; then
+    rm -f "$VENDOR"
+    cp -c -R "$VENDOR_SRC" "$VENDOR" 2>/dev/null || cp -R "$VENDOR_SRC" "$VENDOR"
+    chmod -R u+w "$VENDOR"
 fi
+# The copy has no .git; bootstrap treats a tree with git-commit-info as the official source
+# tarball (the file it writes there): no submodule is demanded, the channel comes from
+# src/ci/channel, and rustc --version carries the pin's commit and date as upstream's does.
+if [ ! -f "$SRC/git-commit-info" ]; then
+    date=$(git -C "$UP" show -s --format=%cs HEAD)
+    printf '%s\n%.9s\n%s\n' "$pin" "$pin" "$date" > "$SRC/git-commit-info"
+    printf '%s' "$pin" > "$SRC/git-commit-hash"
+fi
+# compiler_builtins' C sources (build.optimized-compiler-builtins = true) are read from
+# src/llvm-project/compiler-rt; the submodule is not fetched (D-0003): llvm/'s pinned, patched copy, linked.
+[ -d "$ROOT/target/llvm/src/compiler-rt" ] || { echo "build: target/llvm/src/compiler-rt missing: just build llvm first" >&2; exit 1; }
+# The rust-src component ships src/llvm-project/libunwind too (the `unwind` crate builds it
+# for the targets that bundle it); the same pinned copy.
+mkdir -p "$SRC/src/llvm-project"
+for d in compiler-rt libunwind; do
+    [ -e "$SRC/src/llvm-project/$d" ] || ln -s "$ROOT/target/llvm/src/$d" "$SRC/src/llvm-project/$d"
+done
 
 # 2. x.py. Every line that is not upstream's default has its reason in DESIGN.md.
 cat > "$OUT/config.toml" <<TOML
 # Written by rust/build/build.sh; DESIGN.md explains each line.
+change-id = "ignore"
+
 [build]
 build = "$HOST"
 host = ["$HOST"]
@@ -105,10 +146,12 @@ locked-deps = true
 docs = false
 compiler-docs = false
 extended = true
-tools = ["cargo", "clippy", "rustfmt", "src"]
+tools = ["rustdoc", "cargo", "clippy", "rustfmt", "src"]
 jobs = $JOBS
-optimized-compiler-builtins = "$ROOT/target/llvm/src/compiler-rt"
+optimized-compiler-builtins = true
 patch-binaries-for-nix = false
+cargo-native-static = true
+description = "EmiBSD DevTools"
 
 [install]
 prefix = "$PREFIX"
@@ -121,7 +164,6 @@ link-shared = false
 
 [rust]
 channel = "stable"
-description = "EmiBSD DevTools"
 download-rustc = false
 optimize = true
 debug = false

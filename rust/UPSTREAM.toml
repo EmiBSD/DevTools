@@ -4,7 +4,8 @@ name    = "Rust"
 kind    = "git"
 repo    = "https://github.com/EmiBSD/rust"           # the organisation's mirror, always
 origin  = "https://github.com/rust-lang/rust"          # what the mirror is fed from
-path    = []
+path    = ["/*", "!/compiler/rustc_codegen_gcc/"]   # the whole tree but the GCC backend: its gccjit crates are GPL-3.0 (POLICIES.md: never in the tree);
+                                          # excluded from the root workspace upstream, built only when rust.codegen-backends names gcc
 commit  = "48a229ceaefd4985c50990b14116b6d856af0985"   # the commit tag 1.98.1 points to (18ed059b is the annotated tag object)
 tag     = "1.98.1"                 # resolved to a commit at fetch, recorded in upstream/.pin
 version = "1.98.1+emibsd.1"        # the upstream's version, plus our patch level
@@ -14,7 +15,7 @@ license = ["Apache-2.0", "MIT"]   # the families; the texts stay in the source
 cpe     = "rust-lang:rust"            # NVD product, for tools/cve.py
 
 [patches]
-series  = []                              # patches/NNNN-*.patch, in order; each with its reason (the target, slice 2 of T2; DESIGN.md)
+series  = ["0001-bootstrap-vendor-what-is-there.patch"]   # patches/NNNN-*.patch, in order; each with its reason; DESIGN.md
 
 # The rule of the pins: the stable release of Rust is the one pin chosen (`tag`); everything
 # else, the submodules and the crates, is pinned to what that release fixes (its .gitmodules,
@@ -41,7 +42,11 @@ commit  = "71d5bfcc1bda05da1783666fc2cd7d9669c9c4c8"   # tag 0.2.185: the versio
 
 [vendor]                                  # the crates.io dependencies, vendored once by `just fetch` (cargo vendor --locked;
 dir       = "rust-vendor"                 # the versions and checksums of the pin's Cargo.lock files), into upstream/<dir>/:
-manifests = ["library/Cargo.toml", "src/tools/cargo/Cargo.toml", "src/bootstrap/Cargo.toml"]   # the build never touches the network;
+manifests = ["library/Cargo.toml", "library/stdarch/Cargo.toml", "src/tools/cargo/Cargo.toml", "src/bootstrap/Cargo.toml",
+             "src/tools/clippy/clippy_test_deps/Cargo.toml", "src/tools/rust-analyzer/Cargo.toml",
+             "compiler/rustc_codegen_cranelift/Cargo.toml",
+             "src/tools/opt-dist/Cargo.toml"]       # every workspace of the tree that bootstrap's own vendor step lists (vendor.rs);
+                                          # generate-copyright scans the same list; the build never touches the network;
                                           # tools/crates.py checks their licences against docs/POLICIES.md (`just crates rust`)
 
 # One LLVM (decision D-0003, 2026-10-31): rustc is built against llvm/'s LLVM through
