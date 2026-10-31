@@ -1,7 +1,7 @@
 # Imported toolchains: the practice
 
-Everything in this repository is someone else's compiler, compiled. This is what that allows
-and forbids; `CLAUDE.md` has the non-negotiables, `docs/POLICIES.md` the licences and
+Everything in this repository is someone else's compiler, compiled, plus the patch series
+that teaches it the EmiBSD target (decision D-0004). This is what that allows and forbids; `CLAUDE.md` has the non-negotiables, `docs/POLICIES.md` the licences and
 dependencies, `docs/DECISIONS.md` the decisions.
 
 ## The source

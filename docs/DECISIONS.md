@@ -27,7 +27,7 @@ Date: YYYY-MM-DD · Status: proposed | accepted | superseded by D-MMMM
 | D-0001 | 2026-10-18 | accepted | arm64 first; amd64 waits for the kernel's N10 |
 | D-0002 | 2026-10-31 | accepted, two points open | DevTools is its own repository: the toolchains from the forks, released as artifacts |
 | D-0003 | 2026-10-31 | accepted | One LLVM, upstream's, from the fork; nothing of OpenBSD in DevTools |
-| D-0004 | 2026-10-31 | accepted, not yet applied | EmiBSD's own target triple, `aarch64-unknown-emibsd`, carried as patches of ours |
+| D-0004 | 2026-10-31 | accepted; applied to LLVM 2026-10-31, Rust at T2 | EmiBSD's own target triple, `aarch64-unknown-emibsd`, carried as patches of ours |
 | D-0005 | 2026-10-31 | accepted | DevTools stands alone: its rules, policies and decisions live here |
 
 ---
@@ -118,7 +118,7 @@ Sources: `EmiBSD/llvm-project` tag `llvmorg-22.1.6` = `fc4aad7b`; `EmiBSD/rust` 
 
 # D-0004: EmiBSD's own target triple, `aarch64-unknown-emibsd`, carried as patches of ours
 
-Date: 2026-10-31 · Status: accepted, not yet applied to this repository's documents and build glue
+Date: 2026-10-31 · Status: accepted; applied to LLVM on 2026-10-31 (`llvm/patches/0001` to `0005`, the documents and the build glue); Rust's series is T2's work
 
 ## Context
 With D-0003 DevTools builds upstream LLVM and Rust and nothing of OpenBSD enters it. The
@@ -146,7 +146,12 @@ mirrors.
   compiler-rt, libc++, the `ld.so` path, `-z` defaults: what the ABI needs, written from the
   ABI, not copied from OpenBSD's driver); the target info in
   `clang/lib/Basic/Targets/OSTargets.h` defining `__EmiBSD__`; the runtimes' CMake and
-  sources taught the new OS; a CMake platform file for `CMAKE_SYSTEM_NAME=EmiBSD`.
+  sources taught the new OS; a CMake platform file for `CMAKE_SYSTEM_NAME=EmiBSD`; lld
+  resolving `-l<name>` to the versioned shared library the system carries
+  (`lib<name>.so.<major>.<minor>`, the name its `ld.so` looks up), because the linker that
+  cross-links the userland is the system's own linker once installed, and the knowledge
+  belongs in it rather than in a `lib<name>.so` link per library (the maintainer,
+  2026-10-31: "demosle con la 2").
 - **Rust** (T2): a target spec `aarch64-unknown-emibsd` in `rustc_target` with its base;
   `std`'s `target_os = "emibsd"` paths; the `libc` crate's bindings for the new OS, which
   rust vendors, as a patch here too. Tier 3 by upstream's rules; `std` still built from the
