@@ -100,7 +100,8 @@ upstream/  the fetched sources (gitignored); target/ the builds; dist/ the artif
 - `just` at the root: `fetch`, `fetch-check`, `mirror-check`, `outdated`, `status`, `build <llvm|rust>`,
   `cve <llvm|rust>` (network, the user's OK). `PATH=/opt/homebrew/opt/rustup/bin:$PATH`.
 - A build is long (LLVM about an hour on the Mac with the cores it gets; rustc longer):
-  built once, cached under `target/`, never rebuilt by a check. `COMP_JOBS` bounds the jobs.
+  built once, cached under `target/`, never rebuilt by a check; `just build` takes the
+  machine's lock `/tmp/emibsd/ci.lock` (D-0007) so that no two heavy builds run at once. `COMP_JOBS` bounds the jobs.
   CMake, Ninja and Python 3 are the host tools; installing them is the user's.
 - Read upstream sources with `sed -n` or `git -C upstream/<mirror> show`, never `cd` into
   `upstream/`. The guard hook refuses both the write and the `cd`.

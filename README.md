@@ -82,7 +82,7 @@ just mirror-check    # every pin exists on its mirror and its origin with the sa
 just outdated        # is any pin behind its upstream's latest release? (the daily workflow files an issue)
 just fetch           # clone the pinned sources into upstream/ (network)
 just fetch-check     # the fetched sources match the pins
-just build llvm      # build one toolchain into target/ (long: built once, cached); `just build rust` after it
+just build llvm      # build one toolchain into target/ (long: built once, cached; under /tmp/emibsd/ci.lock); `just build rust` after it
 just crates rust     # the licences of the vendored crates, against docs/POLICIES.md
 just dist llvm       # the artifact: dist/<name>-<version>-<host>.tar.zst and .sha256, checked unpacked elsewhere
 just release llvm    # the GitHub release from a tagged commit (the maintainer's)

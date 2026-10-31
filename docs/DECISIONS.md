@@ -30,6 +30,7 @@ Date: YYYY-MM-DD · Status: proposed | accepted | superseded by D-MMMM
 | D-0004 | 2026-10-31 | accepted; applied to LLVM and to Rust 2026-10-31 | EmiBSD's own target triple, `aarch64-emibsd-emibsd8.0`, carried as patches of ours |
 | D-0005 | 2026-10-31 | accepted | DevTools stands alone: its rules, policies and decisions live here |
 | D-0006 | 2026-10-31 | accepted | T2's scope: the kernel's target, the artifact's tools, the crates vendored by `just fetch`, the pins follow the release |
+| D-0007 | 2026-10-31 | accepted | A heavy build takes the machine's lock `/tmp/emibsd/ci.lock` |
 
 ---
 
@@ -256,3 +257,30 @@ The maintainer, 2026-10-31, "dale tonses":
 - The compiler's own `libc` (0.2.183 in the root `Cargo.lock`) needs EmiBSD only when rustc
   runs on EmiBSD (T4); it is then patched the same way.
 
+---
+
+# D-0007: A heavy build takes the machine's lock `/tmp/emibsd/ci.lock`
+
+Date: 2026-10-31 · Status: accepted
+
+## Context
+DevTools and the kernel repository build on the same Mac, and a toolchain build takes the
+cores it is given for half an hour or more. The kernel repository's agent asked, through
+the maintainer, that DevTools take the lock `/tmp/emibsd/ci.lock` for its heavy builds, as
+its own heavy runs do, so that the two never run at once. That is a convention of the
+machine, not of any repository's internals; this record is DevTools' own copy of it
+(D-0005).
+
+## Decision
+The maintainer, 2026-10-31, "dale": `just build <name>` runs `build/build.sh` under an
+advisory lock on `/tmp/emibsd/ci.lock` (`tools/lock.py`: `flock(2)` on the file, exclusive,
+blocking; it says when it waits and for how long it waited). Nothing else of DevTools takes
+it: `just dist`, the checks and the fetches are light. The mechanism is `flock(2)` on that
+path; a holder that locks the same path another way (a `mkdir`, a pid file) is not excluded,
+and the kernel repository is told which mechanism this is.
+
+## Consequences
+- `justfile`'s `build` recipe runs through `tools/lock.py`; `COMP_JOBS` keeps bounding the
+  jobs of a build once it runs.
+- A build started by hand with `sh <name>/build/build.sh` takes no lock: `just build` is the
+  way.

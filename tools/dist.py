@@ -137,7 +137,7 @@ def pack(name):
     zstd.stdin.close()
     if zstd.wait() != 0:
         raise SystemExit("dist: zstd failed")
-    print(f"dist: {tarball.relative_to(ROOT)}: {tarball.stat().st_size // (1 << 20)} MB")
+    print(f"dist: {tarball.relative_to(ROOT)}: {tarball.stat().st_size / 1e6:.0f} MB")
     return top, tarball
 
 
