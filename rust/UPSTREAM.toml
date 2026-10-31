@@ -27,7 +27,7 @@ commit  = "797e8a9bca276c1c9f9f738d2a20f484fa4eea9d"
 # as distributions build it against a system LLVM; rustc 1.98.1 requires LLVM >= 21
 # (src/bootstrap/src/core/build_steps/llvm.rs, check_llvm_version). Its own src/llvm-project
 # submodule is not pinned and not fetched. Built with x.py, host first, then the target
-# aarch64-unknown-emibsd (D-0004, its target spec a patch of ours in patches/): the std for
+# aarch64-emibsd-emibsd (D-0004; llvm-target aarch64-emibsd-emibsd8.0, its target spec a patch of ours in patches/): the std for
 # the tier 3 target is built as part of the toolchain,
 # from a stable release's source, without nightly. Stage0: rustup's rustc on the host; on
 # EmiBSD, the previous DevTools release. library/backtrace is a submodule std needs; its

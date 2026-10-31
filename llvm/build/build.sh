@@ -8,7 +8,7 @@
 #    applied with patch -p1; made again when the pin, the paths or the series changed
 #    (.emibsd-src).
 # 2. target/llvm/host, installed under target/llvm/<host>: clang, lld and the tools for
-#    this machine, emitting for aarch64-unknown-emibsd by default.
+#    this machine, emitting for aarch64-emibsd-emibsd8.0 by default.
 # 3. target/llvm/builtins, then target/llvm/runtimes, installed under the same prefix in
 #    lib/clang/<major>/lib/<triple>/, lib/<triple>/ and include/<triple>/: compiler-rt's
 #    builtins first, then libunwind, libc++abi and libc++ for the target, compiled by
@@ -29,7 +29,8 @@ pin=$(cat "$UP/.pin")
 : "${EMIBSD_SYSROOT:?set EMIBSD_SYSROOT to the target libc, crt and headers, see DESIGN.md}"
 [ -f "$EMIBSD_SYSROOT/usr/lib/libc.a" ] || { echo "build: $EMIBSD_SYSROOT: no usr/lib/libc.a" >&2; exit 1; }
 HOST=$(cc -dumpmachine 2>/dev/null || echo host)
-TRIPLE=aarch64-unknown-emibsd
+EMIBSD_OS_VERSION=8.0                       # the EmiBSD release the ABI belongs to; in the triple, as the BSDs do; bumped by the maintainer
+TRIPLE=aarch64-emibsd-emibsd$EMIBSD_OS_VERSION
 VERSION=$(python3 -I -c 'import sys,tomllib; print(tomllib.load(open(sys.argv[1],"rb"))["upstream"]["version"].split("+")[0])' llvm/UPSTREAM.toml)
 JOBS=${COMP_JOBS:-6}
 OUT=target/llvm

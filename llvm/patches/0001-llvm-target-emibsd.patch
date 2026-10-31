@@ -1,8 +1,12 @@
-llvm: the EmiBSD operating system in the target triple
+llvm: EmiBSD as vendor and operating system in the target triple
 
 Why a patch: LLVM knows nothing of EmiBSD, and DevTools' toolchains emit for
-aarch64-unknown-emibsd (x86_64-unknown-emibsd when amd64 returns). This adds the
-OS to the triple (`emibsd`, Triple::EmiBSD, isOSEmiBSD) and states what its ABI
+aarch64-emibsd-emibsd8.0 (x86_64 when amd64 returns; the OS version is the release
+the ABI belongs to, set by the build glue, not by this patch): the vendor is
+EmiBSD, the project (emibsd.org), and so is the operating system. This adds the
+vendor (`emibsd`, Triple::EmiBSDVendor: the enumerators of VendorType and
+OSType share Triple's scope, as Mesa and Mesa3D do) and the OS (`emibsd`,
+Triple::EmiBSD, isOSEmiBSD) to the triple, and states what the ABI
 needs of code generation, which is the ABI its kernel and libc present:
 - emulated TLS by default: the run-time link-editor has no ELF TLS;
 - the stack protector through the libc's __guard_local and
@@ -15,7 +19,16 @@ upstream when stable. Author: Emilio Navarrete Lineros, 2026-10-31.
 
 --- a/llvm/include/llvm/TargetParser/Triple.h
 +++ b/llvm/include/llvm/TargetParser/Triple.h
-@@ -210,6 +210,7 @@
+@@ -203,13 +203,15 @@
+     OpenEmbedded,
+     Intel,
+     Meta,
+-    LastVendorType = Meta
++    EmiBSDVendor,
++    LastVendorType = EmiBSDVendor
+   };
+   enum OSType {
+     UnknownOS,
  
      Darwin,
      DragonFly,
@@ -23,7 +36,7 @@ upstream when stable. Author: Emilio Navarrete Lineros, 2026-10-31.
      FreeBSD,
      Fuchsia,
      IOS,
-@@ -655,6 +656,10 @@
+@@ -655,6 +657,10 @@
      return getOS() == Triple::OpenBSD;
    }
  
@@ -34,7 +47,7 @@ upstream when stable. Author: Emilio Navarrete Lineros, 2026-10-31.
    bool isOSFreeBSD() const {
      return getOS() == Triple::FreeBSD;
    }
-@@ -1209,7 +1214,7 @@
+@@ -1209,7 +1215,7 @@
    /// Note: Android API level 29 (10) introduced ELF TLS.
    bool hasDefaultEmulatedTLS() const {
      return (isAndroid() && isAndroidVersionLT(29)) || isOSOpenBSD() ||
@@ -45,7 +58,15 @@ upstream when stable. Author: Emilio Navarrete Lineros, 2026-10-31.
    /// True if the target uses TLSDESC by default.
 --- a/llvm/lib/TargetParser/Triple.cpp
 +++ b/llvm/lib/TargetParser/Triple.cpp
-@@ -299,6 +299,7 @@
+@@ -269,6 +269,7 @@
+   case AMD: return "amd";
+   case Apple: return "apple";
+   case CSR: return "csr";
++  case EmiBSDVendor: return "emibsd";
+   case Freescale: return "fsl";
+   case IBM: return "ibm";
+   case ImaginationTechnologies: return "img";
+@@ -299,6 +300,7 @@
    case CUDA: return "cuda";
    case Darwin: return "darwin";
    case DragonFly: return "dragonfly";
@@ -53,7 +74,15 @@ upstream when stable. Author: Emilio Navarrete Lineros, 2026-10-31.
    case DriverKit: return "driverkit";
    case ELFIAMCU: return "elfiamcu";
    case Emscripten: return "emscripten";
-@@ -710,6 +711,7 @@
+@@ -703,6 +705,7 @@
+       .Case("oe", Triple::OpenEmbedded)
+       .Case("intel", Triple::Intel)
+       .Case("meta", Triple::Meta)
++      .Case("emibsd", Triple::EmiBSDVendor)
+       .Default(Triple::UnknownVendor);
+ }
+ 
+@@ -710,6 +713,7 @@
    return StringSwitch<Triple::OSType>(OSName)
        .StartsWith("darwin", Triple::Darwin)
        .StartsWith("dragonfly", Triple::DragonFly)

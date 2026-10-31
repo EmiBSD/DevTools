@@ -10,7 +10,7 @@
    touched.
 1. **Stage 1, the host tools.** `cmake -S target/llvm/src/llvm -B target/llvm/host`
    with `LLVM_ENABLE_PROJECTS=clang;lld`, `LLVM_TARGETS_TO_BUILD=AArch64;X86`,
-   `LLVM_DEFAULT_TARGET_TRIPLE=aarch64-unknown-emibsd`, `CMAKE_BUILD_TYPE=Release`,
+   `LLVM_DEFAULT_TARGET_TRIPLE=aarch64-emibsd-emibsd8.0`, `CMAKE_BUILD_TYPE=Release`,
    `LLVM_ENABLE_ASSERTIONS=OFF`, `LLVM_INSTALL_UTILS=ON`; installed into
    `target/llvm/<host>/`. This is what rustc's `llvm-config` points at.
 2. **Stage 2, the target runtimes**, in the two passes upstream's own runtimes bootstrap
@@ -19,13 +19,13 @@
    target/llvm/src/compiler-rt/lib/builtins -B target/llvm/builtins`, the stage-1 clang as
    the compiler, `CMAKE_SYSTEM_NAME=EmiBSD` (CMake learns the system from
    `build/cmake/Platform/EmiBSD.cmake`), `CMAKE_SYSROOT=$EMIBSD_SYSROOT`, the triple
-   `aarch64-unknown-emibsd`, `CMAKE_{C,CXX,ASM}_COMPILER_WORKS=ON` as upstream passes them,
+   `aarch64-emibsd-emibsd8.0`, `CMAKE_{C,CXX,ASM}_COMPILER_WORKS=ON` as upstream passes them,
    `COMPILER_RT_DEFAULT_TARGET_ONLY=ON`; installed into the stage-1 tree under
-   `lib/clang/22/lib/aarch64-unknown-emibsd/`. **2b**: `cmake -S target/llvm/src/runtimes -B
+   `lib/clang/22/lib/aarch64-emibsd-emibsd8.0/`. **2b**: `cmake -S target/llvm/src/runtimes -B
    target/llvm/runtimes` with `LLVM_ENABLE_RUNTIMES=libunwind;libcxxabi;libcxx`, the same
    compiler, system, sysroot and triple, static libraries only, `LIBCXX_USE_COMPILER_RT=ON`,
-   `LIBCXXABI_USE_LLVM_UNWINDER=ON`; installed under `lib/aarch64-unknown-emibsd/` and
-   `include/aarch64-unknown-emibsd/` (`LLVM_ENABLE_PER_TARGET_RUNTIME_DIR`), where the driver
+   `LIBCXXABI_USE_LLVM_UNWINDER=ON`; installed under `lib/aarch64-emibsd-emibsd8.0/` and
+   `include/aarch64-emibsd-emibsd8.0/` (`LLVM_ENABLE_PER_TARGET_RUNTIME_DIR`), where the driver
    looks for them. No sanitizer, xray, fuzzer or profile runtime: only the builtins of
    compiler-rt are built.
 3. **`tests/check.sh`** over the install tree: the compiler's identity and macros, the
@@ -39,7 +39,7 @@ Flags that differ from upstream's defaults, with the reason:
 
 | Flag | Value | Why |
 |---|---|---|
-| `LLVM_DEFAULT_TARGET_TRIPLE` | `aarch64-unknown-emibsd` | the system's clang emits for the system by default (D-0004) |
+| `LLVM_DEFAULT_TARGET_TRIPLE` | `aarch64-emibsd-emibsd8.0` | the system's clang emits for the system by default (D-0004); the OS version is the EmiBSD release the ABI belongs to, `EMIBSD_OS_VERSION` in `build.sh`, bumped by the maintainer; the per-target runtime directories carry it |
 | `CMAKE_SYSTEM_NAME` (stage 2) | `EmiBSD`, with `build/cmake/Platform/EmiBSD.cmake` | CMake must name the system the runtimes are cross-compiled for; it knows no EmiBSD, so DevTools describes it (an ELF Unix without libdl) |
 | `LLVM_ENABLE_PER_TARGET_RUNTIME_DIR` (stage 2) | `ON` | the runtimes land in `lib/<triple>/`, where clang's driver looks for a cross target |
 | `LIBCXX_ENABLE_SHARED`, `LIBCXXABI_ENABLE_SHARED`, `LIBUNWIND_ENABLE_SHARED` | `OFF` | the system links its C++ statically for now; shared runtimes are a decision for when the userland ships them |

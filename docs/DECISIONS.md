@@ -27,7 +27,7 @@ Date: YYYY-MM-DD · Status: proposed | accepted | superseded by D-MMMM
 | D-0001 | 2026-10-18 | accepted | arm64 first; amd64 waits for the kernel's N10 |
 | D-0002 | 2026-10-31 | accepted, two points open | DevTools is its own repository: the toolchains from the forks, released as artifacts |
 | D-0003 | 2026-10-31 | accepted | One LLVM, upstream's, from the fork; nothing of OpenBSD in DevTools |
-| D-0004 | 2026-10-31 | accepted; applied to LLVM 2026-10-31, Rust at T2 | EmiBSD's own target triple, `aarch64-unknown-emibsd`, carried as patches of ours |
+| D-0004 | 2026-10-31 | accepted; applied to LLVM 2026-10-31, Rust at T2 | EmiBSD's own target triple, `aarch64-emibsd-emibsd8.0`, carried as patches of ours |
 | D-0005 | 2026-10-31 | accepted | DevTools stands alone: its rules, policies and decisions live here |
 
 ---
@@ -116,7 +116,7 @@ Sources: `EmiBSD/llvm-project` tag `llvmorg-22.1.6` = `fc4aad7b`; `EmiBSD/rust` 
 
 ---
 
-# D-0004: EmiBSD's own target triple, `aarch64-unknown-emibsd`, carried as patches of ours
+# D-0004: EmiBSD's own target triple, `aarch64-emibsd-emibsd8.0`, carried as patches of ours
 
 Date: 2026-10-31 · Status: accepted; applied to LLVM on 2026-10-31 (`llvm/patches/0001` to `0005`, the documents and the build glue); Rust's series is T2's work
 
@@ -130,11 +130,26 @@ the first now and the second only when EmiBSD's ABI diverges.
 
 ## Decision
 The maintainer, 2026-10-31: the second. "No quiero nada de OpenBSD en DevTools; son tools
-sanas." The toolchains emit for **`aarch64-unknown-emibsd`** (`x86_64-unknown-emibsd` when
+sanas." The toolchains emit for **`aarch64-emibsd-emibsd`** (`x86_64-emibsd-emibsd` when
 amd64 returns, D-0001). The support for that target is written by us as the patch series of
 `llvm/patches/` and `rust/patches/` over the pinned upstream tags, each patch with its
 reason, regenerated at every pin bump, offered upstream when it is stable. The forks stay
 mirrors.
+
+The vendor field, the maintainer, 2026-10-31, offered `unknown` (the convention of the free
+systems) or the project's own name: "emibsd! es mi marca! emibsd.org". The vendor is
+`emibsd`: the triple is `aarch64-emibsd-emibsd`, written in full always, because LLVM reads
+a short `aarch64-emibsd` as arch and vendor with no OS (its normaliser claims a component
+for the vendor before the OS). `Triple::EmiBSDVendor` is part of patch 0001.
+
+The OS version in the triple, the maintainer, 2026-10-31: "esta es 8.0". As OpenBSD
+(`openbsd7.6`) and FreeBSD (`freebsd14.0`) do, the triple carries the release the ABI
+belongs to: `aarch64-emibsd-emibsd8.0`, `EMIBSD_OS_VERSION` in `llvm/build/build.sh`,
+bumped by the maintainer in its own commit. clang names the per-target runtime directories
+with the full triple, version included (`lib/aarch64-emibsd-emibsd8.0/`), so the toolchain
+is used with its exact default triple. Rust's target keeps the unversioned name
+`aarch64-emibsd-emibsd` (as `x86_64-unknown-freebsd`) with
+`llvm-target = "aarch64-emibsd-emibsd8.0"`.
 
 ## Consequences
 - **DevTools stops being imported-only.** The target support is written code, ISC, in
@@ -152,7 +167,8 @@ mirrors.
   cross-links the userland is the system's own linker once installed, and the knowledge
   belongs in it rather than in a `lib<name>.so` link per library (the maintainer,
   2026-10-31: "demosle con la 2").
-- **Rust** (T2): a target spec `aarch64-unknown-emibsd` in `rustc_target` with its base;
+- **Rust** (T2): a target spec `aarch64-emibsd-emibsd` in `rustc_target` with its base
+  (`vendor = "emibsd"`, `target_vendor = "emibsd"`);
   `std`'s `target_os = "emibsd"` paths; the `libc` crate's bindings for the new OS, which
   rust vendors, as a patch here too. Tier 3 by upstream's rules; `std` still built from the
   stable release's source, no nightly.

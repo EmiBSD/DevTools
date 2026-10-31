@@ -21,13 +21,13 @@ other backends, the tests, the documentation.
 
 ## Constraints
 
-Stage 1 runs on the host and emits for `aarch64-unknown-emibsd` (D-0004); stage 2
+Stage 1 runs on the host and emits for `aarch64-emibsd-emibsd8.0` (D-0004); stage 2
 cross-compiles the runtimes against the sysroot it is given (`EMIBSD_SYSROOT`: libc, crt,
 headers). The build refuses to run without a sysroot rather than guess one.
 
 ## Compatibility
 
-The `*-unknown-emibsd` target is ours (`patches/`, D-0004): upstream LLVM knows no EmiBSD.
+The `*-emibsd-emibsd` target is ours (`patches/`, D-0004): upstream LLVM knows no EmiBSD.
 The compiler predefines `__EmiBSD__` and nothing of any other system; what the base
 system's inherited C expects beyond that (the macro it tests, the flags it was built with)
 is settled in the userland repository, where that C is built, not here. The ABI the target

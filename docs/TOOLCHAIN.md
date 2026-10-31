@@ -4,7 +4,7 @@
 
 | | Version | From | Builds |
 |---|---|---|---|
-| `llvm/` | `llvmorg-22.1.6` | the fork `EmiBSD/llvm-project` at upstream's tag, as upstream ships it | clang, lld, the tools; compiler-rt, libunwind, libc++abi, libc++ for `aarch64-unknown-emibsd` (our patch series, D-0004) |
+| `llvm/` | `llvmorg-22.1.6` | the fork `EmiBSD/llvm-project` at upstream's tag, as upstream ships it | clang, lld, the tools; compiler-rt, libunwind, libc++abi, libc++ for `aarch64-emibsd-emibsd8.0` (our patch series, D-0004) |
 
 It compiles the C and C++ of the system and it is the backend rustc builds against
 (rustc 1.98.1 needs LLVM 21 or newer). Nothing of OpenBSD enters DevTools: no LLVM code, no
@@ -49,9 +49,9 @@ them is in this table.
 
 | Host | Target | When | Stage0 for `rust/` |
 |---|---|---|---|
-| `aarch64-apple-darwin` | `aarch64-unknown-emibsd` | T1, T2: the development machine | rustup's 1.98.1 (`rust-toolchain.toml`) |
-| `x86_64-unknown-linux-gnu` | `aarch64-unknown-emibsd` | only if a consumer's CI needs it (open decision) | rustup's |
-| `aarch64-unknown-emibsd` | itself | T4, after the kernel's milestone N9 (no inherited tree left) | the previous DevTools release |
+| `aarch64-apple-darwin` | `aarch64-emibsd-emibsd8.0` | T1, T2: the development machine | rustup's 1.98.1 (`rust-toolchain.toml`) |
+| `x86_64-unknown-linux-gnu` | `aarch64-emibsd-emibsd8.0` | only if a consumer's CI needs it (open decision) | rustup's |
+| `aarch64-emibsd-emibsd8.0` | itself | T4, after the kernel's milestone N9 (no inherited tree left) | the previous DevTools release |
 
 amd64 as a target waits for the kernel's milestone N10 (decision D-0001). The target is
 EmiBSD's own, taught to each toolchain by our patch series (decision D-0004): LLVM's in
@@ -74,13 +74,13 @@ Installing any of them is the user's.
    (`llvm/DESIGN.md`). Proof: a C hello and a C++ hello, compiled for the target and run under
    the EmiBSD kernel in QEMU.
 2. **T2.** `rust/build/build.sh` runs `x.py dist` with a `config.toml` that names the host,
-   the target `aarch64-unknown-emibsd`, `llvm-config` from T1, the linker (T1's lld), the
+   the target `aarch64-emibsd-emibsd8.0`, `llvm-config` from T1, the linker (T1's lld), the
    sysroot, and `llvm.download-ci-llvm = false`. `std`'s rlibs need no libc to compile; the
    hello needs the sysroot to link. Needs the `backtrace-rs` mirror first.
 3. **T3.** `dist/<name>-<version>-<host>.tar.zst` and `.sha256`, from a tagged commit,
    uploaded as a GitHub release of this repository. A consumer's recipe downloads by version
    and verifies the sum. Signed with signify when the userland ships it.
-4. **T4.** The same `x.py` on EmiBSD, stage0 the T3 artifact for `aarch64-unknown-emibsd`.
+4. **T4.** The same `x.py` on EmiBSD, stage0 the T3 artifact for `aarch64-emibsd-emibsd8.0`.
    From then on each release builds from the previous one; the first cross-built one is the
    root of trust and is recorded here with its hash.
 
