@@ -64,7 +64,7 @@ def fetch_git(key, ups):
     want = commits.pop()
     if not want:
         raise SystemExit(f"upstream: {key}: no commit or tag pinned")
-    paths = sorted({p for u in ups for p in u.get("path", [])})
+    paths = list(dict.fromkeys(p for u in ups for p in u.get("path", [])))   # in order: a "!" pattern excludes what came before it
     if not dest.exists():
         UPSTREAM.mkdir(exist_ok=True)
         subprocess.run(["git", "clone", "--no-checkout", "--filter=blob:none", repo, str(dest)], check=True)
@@ -104,7 +104,8 @@ def vendor_crates(key, dest: Path, head: str, vendor: dict):
     vendors them. .pin records the source commit the vendor directory was made for."""
     out = UPSTREAM / vendor["dir"]
     pin = out / ".pin"
-    if pin.exists() and pin.read_text().strip() == head:
+    want = head + " " + " ".join(vendor.get("manifests", []))   # the commit and the workspaces vendored
+    if pin.exists() and pin.read_text().strip() == want:
         print(f"upstream: {key}: {out.relative_to(ROOT)} already vendored for {head[:12]}")
         return
     if out.exists():
@@ -120,7 +121,7 @@ def vendor_crates(key, dest: Path, head: str, vendor: dict):
     # library/'s workspace declares cargo-features a stable cargo otherwise refuses to read.
     subprocess.run(cmd, cwd=dest, check=True, stdout=subprocess.DEVNULL,
                    env={**os.environ, "RUSTUP_TOOLCHAIN": toolchain, "RUSTC_BOOTSTRAP": "1"})
-    pin.write_text(head + "\n")
+    pin.write_text(want + "\n")
     readonly(out)
     print(f"upstream: {key}: {sum(1 for _ in out.iterdir()) - 1} crates vendored for {head[:12]}")
 
