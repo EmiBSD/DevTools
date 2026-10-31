@@ -22,7 +22,7 @@
    `build/cmake/Platform/EmiBSD.cmake`), `CMAKE_SYSROOT=$EMIBSD_SYSROOT`, the triple
    `aarch64-emibsd-emibsd8.0`, `CMAKE_{C,CXX,ASM}_COMPILER_WORKS=ON` as upstream passes them,
    `COMPILER_RT_DEFAULT_TARGET_ONLY=ON`; installed into the stage-1 tree under
-   `lib/clang/22/lib/aarch64-emibsd-emibsd8.0/`. **2b**: `cmake -S target/llvm/src/runtimes -B
+   `lib/clang/23/lib/aarch64-emibsd-emibsd8.0/`. **2b**: `cmake -S target/llvm/src/runtimes -B
    target/llvm/runtimes` with `LLVM_ENABLE_RUNTIMES=libunwind;libcxxabi;libcxx`, the same
    compiler, system, sysroot and triple, static libraries only, `LIBCXX_USE_COMPILER_RT=ON`,
    `LIBCXXABI_USE_LLVM_UNWINDER=ON`; installed under `lib/aarch64-emibsd-emibsd8.0/` and
@@ -34,7 +34,7 @@
    the ELF each must be (`DESIGN.md` of the kernel's loader, in a word: PIE, OS/ABI byte 12,
    `PT_OPENBSD_RANDOMIZE`, BTI). That they run is the kernel repository's smoke, T1's proof.
 
-The install tree is the artifact (T3): `bin/` (the distribution), `lib/clang/22/` (the
+The install tree is the artifact (T3): `bin/` (the distribution), `lib/clang/23/` (the
 builtin headers and the target's builtins), `lib/<triple>/` and `include/<triple>/` (the
 target's runtimes and libc++'s headers).
 

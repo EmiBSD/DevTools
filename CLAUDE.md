@@ -35,7 +35,7 @@ answered in Spanish.
   `OpenBSD-src` is not an input of this repository in any form. `tools/mirror.py check` verifies a pin exists on
   the mirror and on the origin with the same hash; pushing a tag to a mirror is the user's,
   from the main session.
-- **One LLVM (D-0003, 2026-10-31).** Upstream LLVM at `llvmorg-22.1.8`, from the fork, as
+- **One LLVM (D-0003, 2026-10-31).** Upstream LLVM at `llvmorg-23.1.4`, from the fork, as
   upstream ships it, built with its own CMake: the compiler of the C and C++ of the system and
   the backend rustc builds against (`llvm-config`; rustc 1.99.1 needs 21 or newer). No patch
   of anyone else's, no build glue of anyone else's; rustc's own LLVM submodule is not fetched.
@@ -88,7 +88,7 @@ upstream/  the fetched sources (gitignored); target/ the builds; dist/ the artif
 | | Scope | Proof |
 |---|---|---|
 | T0 | the repository, the pins moved from the userland repository, the tools, the mirror check | `just fetch-check` and `just mirror-check` green; met 2026-10-31 |
-| T1 | upstream LLVM 22.1.8 built from the fork with CMake on the macOS host: stage 1 the host tools, stage 2 the target runtimes | a C and a C++ hello compiled for the target run under the EmiBSD kernel in QEMU; built and checked on the host 2026-10-31 (`llvm/tests/check.sh`), the QEMU run pending |
+| T1 | upstream LLVM 23.1.4 built from the fork with CMake on the macOS host: stage 1 the host tools, stage 2 the target runtimes | a C and a C++ hello compiled for the target run under the EmiBSD kernel in QEMU; built and checked on the host 2026-10-31 (`llvm/tests/check.sh`), the QEMU run pending |
 | T2 | rustc with `x.py`, macOS host, target `aarch64-emibsd-emibsd` (D-0004: its target spec and `std` paths as `rust/patches/`) and the kernel's `aarch64-unknown-none-softfloat` (D-0006), the userland's sysroot; cargo, clippy, rustfmt and `rust-src` in the artifact | a static Rust hello runs under the EmiBSD kernel in QEMU; built and checked on the host 2026-10-31 (`rust/tests/check.sh`), the QEMU run pending |
 | T3 | GitHub releases: one tarball per host with `.sha256`; consumers fetch by pin | a consumer's toolchain recipe installs it from the release |
 | T4 | self-hosted: rustc built on EmiBSD with T3 as stage0 | after the kernel's N9, when no inherited tree is left |
