@@ -1,5 +1,24 @@
 # EmiBSD DevTools
 
+<p align="center">
+  <img src="docs/Ferffy.jpg" alt="Ferffy, the EmiBSD mascot: a spiky orange crab in front of a shield, above the EmiBSD name" width="380">
+</p>
+
+<p align="center"><em>Ferffy, the EmiBSD mascot: the child of Ferris (Rust's crab) and Puffy (OpenBSD's pufferfish).</em></p>
+
+<p align="center"><strong>The toolchains of EmiBSD, imported and built once: OpenBSD's LLVM for the C, a pinned stable Rust for the rest.</strong></p>
+
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-ISC-007ec6" alt="License: ISC"></a>
+  <a href="rust-toolchain.toml"><img src="https://img.shields.io/badge/dynamic/toml?url=https%3A%2F%2Fraw.githubusercontent.com%2FEmiBSD%2FDevTools%2Fmain%2Frust-toolchain.toml&query=%24.toolchain.channel&suffix=%20stable&label=rust&color=b7410e" alt="Rust: stable, the version pinned in rust-toolchain.toml"></a>
+  <a href="#milestones"><img src="https://img.shields.io/badge/milestone-T0-007ec6" alt="Milestone: T0"></a>
+  <a href="#milestones"><img src="https://img.shields.io/badge/status-experimental-e05d44" alt="Status: experimental"></a>
+  <a href="https://www.emibsd.org"><img src="https://img.shields.io/badge/website-emibsd.org-9f9f9f" alt="Website: www.emibsd.org"></a>
+</p>
+
+> **Not for production.** EmiBSD is an experiment. It runs only in QEMU, and its crypto,
+> network and storage code is unaudited. Do not use it to protect real data or real networks.
+
 The toolchains of [EmiBSD](https://www.emibsd.org), both imported and built once for every
 repository that needs them:
 
