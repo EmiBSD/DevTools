@@ -69,8 +69,8 @@ def fetch_git(key, ups):
         if paths:
             git(dest, "sparse-checkout", "set", "--no-cone", *paths)
     else:
-        for p in paths:
-            readonly_off(dest / ".git")
+        # The tree is read-only after a fetch; a changed path list has to write it.
+        readonly_off(dest)
         if paths:
             git(dest, "sparse-checkout", "set", "--no-cone", *paths)
     readonly_off(dest)
