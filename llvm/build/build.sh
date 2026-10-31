@@ -28,7 +28,7 @@ cmake -G Ninja -S "$SRC/llvm" -B "$OUT/host" \
 ninja -C "$OUT/host" -j "$JOBS" install
 
 echo "== stage 2: target runtimes ($TRIPLE)"
-: "${EMIBSD_SYSROOT:?set EMIBSD_SYSROOT to the target's libc, crt and headers (DESIGN.md)}"
+: "${EMIBSD_SYSROOT:?set EMIBSD_SYSROOT to the target libc, crt and headers, see DESIGN.md}"
 cmake -G Ninja -S "$SRC/runtimes" -B "$OUT/runtimes" \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_INSTALL_PREFIX="$PREFIX" \
