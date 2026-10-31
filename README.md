@@ -11,7 +11,7 @@
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-ISC-007ec6" alt="License: ISC"></a>
   <a href="rust-toolchain.toml"><img src="https://img.shields.io/badge/dynamic/toml?url=https%3A%2F%2Fraw.githubusercontent.com%2FEmiBSD%2FDevTools%2Fmain%2Frust-toolchain.toml&query=%24.toolchain.channel&suffix=%20stable&label=rust&color=b7410e" alt="Rust: stable, the version pinned in rust-toolchain.toml"></a>
-  <a href="#milestones"><img src="https://img.shields.io/badge/milestone-T1%20and%20T2%20built%2C%20T3%20releasing-007ec6" alt="Milestone: T1 and T2 built, T3 releasing"></a>
+  <a href="#milestones"><img src="https://img.shields.io/badge/milestone-T1%2C%20T2%20and%20T3%20released%3B%20QEMU%20proof%20pending-007ec6" alt="Milestone: T1, T2 and T3 released; QEMU proof pending"></a>
   <a href="#milestones"><img src="https://img.shields.io/badge/status-experimental-e05d44" alt="Status: experimental"></a>
   <a href="https://www.emibsd.org"><img src="https://img.shields.io/badge/website-emibsd.org-9f9f9f" alt="Website: www.emibsd.org"></a>
 </p>
@@ -71,7 +71,7 @@ of OpenBSD is in it (D-0003).
 | T0 | the repository, the pins, the tools, the mirror check | `just check` green | met 2026-10-31 |
 | T1 | upstream LLVM 22.1.6 built from the fork with CMake on the macOS host: the host tools, then the target runtimes | a C and a C++ hello compiled for the target run under the EmiBSD kernel in QEMU | built and checked on the host 2026-10-31 (`llvm/tests/check.sh`); the QEMU run pending |
 | T2 | rustc with `x.py` against T1's LLVM, macOS host, target `aarch64-emibsd-emibsd` (decision D-0004: its target spec and `std` paths as `rust/patches/`) and the kernel's `aarch64-unknown-none-softfloat` (D-0006), the userland's sysroot | a static Rust hello runs under the EmiBSD kernel in QEMU | built and checked on the host 2026-10-31 (`rust/tests/check.sh`): rustc, the tools, `std` for the host and for `aarch64-emibsd-emibsd`, `core`/`alloc` for the kernel's target; the QEMU run pending |
-| T3 | GitHub releases: one tarball per host with `.sha256`; consumers fetch by pin | a consumer's toolchain recipe installs it from the release | `just dist` packs both artifacts and checks them unpacked (2026-10-31); the release waits for the tags |
+| T3 | GitHub releases: one tarball per host with `.sha256`; consumers fetch by pin | a consumer's toolchain recipe installs it from the release | released 2026-10-31: `llvm-22.1.6+emibsd.3` (62 MB: the compiler, the linker and the binutils, `llvm/DESIGN.md`) and `rust-1.98.1+emibsd.2` (105 MB), each with its `.sha256`; the consumer's recipe pending |
 | T4 | self-hosted: rustc built on EmiBSD with T3 as stage0 | after the kernel's N9, when no inherited tree is left | |
 
 ## Using it

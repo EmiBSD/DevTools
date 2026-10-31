@@ -104,6 +104,9 @@ def add_tree(tar, top, src: Path, epoch):
 
 
 def pack(name):
+    if not os.environ.get("EMIBSD_SYSROOT"):
+        raise SystemExit("dist: set EMIBSD_SYSROOT (the target libc, crt and headers): the unpacked check "
+                         "links programs against it, as the build does; nothing is packed without it")
     toml = tomllib.load(open(ROOT / name / "UPSTREAM.toml", "rb"))
     version = toml["upstream"]["version"]
     host = HOSTS.get((platform.system(), platform.machine()))

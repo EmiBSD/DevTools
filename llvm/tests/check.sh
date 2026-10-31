@@ -6,7 +6,7 @@
 set -eu
 prefix=${1:?prefix}
 triple=${2:?triple}
-: "${EMIBSD_SYSROOT:?EMIBSD_SYSROOT}"
+: "${EMIBSD_SYSROOT:?set EMIBSD_SYSROOT to the target libc, crt and headers}"
 here=$(cd "$(dirname "$0")/.." && pwd)
 version=$(sed -n 's/^version *= *"\([^+"]*\).*/\1/p' "$here/UPSTREAM.toml")
 major=${version%%.*}

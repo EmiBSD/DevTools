@@ -85,7 +85,7 @@ RS
 # The system's target: std where rustc looks for it, and a hello linked by llvm/'s clang
 # against the sysroot: static PIE and dynamic, the ELF the kernel loads.
 if [ -n "$target" ]; then
-    : "${EMIBSD_SYSROOT:?EMIBSD_SYSROOT}"
+    : "${EMIBSD_SYSROOT:?set EMIBSD_SYSROOT to the target libc, crt and headers}"
     cc="$llvm/bin/clang"; readelf="$llvm/bin/llvm-readelf"
     [ -x "$cc" ] || bad "no clang at $llvm/bin (just build llvm first)"
     ls "$prefix/lib/rustlib/$target/lib/"libstd-*.rlib >/dev/null 2>&1 || bad "no std for $target"
