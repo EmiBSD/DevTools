@@ -29,7 +29,7 @@ flowchart LR
     rust -- "1.98.1" --> dev
     cargo -- "submodule src/tools/cargo" --> dev
     dev -- "clang, lld, libc++; rustc for its written programs" --> ul
-    dev -- "rustc, once EmiBSD builds itself" --> k
+    dev -- "clang, lld; rustc with core and alloc for the kernel's target" --> k
     dev -- "the comp set" --> os
     ul -. "sysroot: libc, crt, headers" .-> dev
 ```
@@ -38,7 +38,7 @@ flowchart LR
 |---|---|---|
 | mirrors to DevTools | rust-lang/rust at the pinned stable tag with its `cargo` submodule; upstream LLVM at `llvmorg-22.1.6` | the only inputs; nothing comes from OpenBSD (D-0003); one LLVM, built with its own CMake, for the C and for rustc's backend |
 | DevTools to the userland | clang, lld and libc++; the Rust cross toolchain when a program written for EmiBSD exists | one toolchain for the whole base system; what OpenBSD's build glue passed to its own patched clang is adapted there, where that C is built |
-| DevTools to the kernel | rustc, once EmiBSD hosts its own build | the kernel itself needs only a stock stable toolchain today (its target is `aarch64-unknown-none-softfloat`); it keeps its own clang build for the inherited userland its smokes boot |
+| DevTools to the kernel | rustc with `core` and `alloc` for `aarch64-unknown-none-softfloat`, clang and lld for its assembly and the programs its smokes run (T1, T2; D-0006) | one toolchain for the kernel as for the userland; the kernel's `rust-toolchain.toml` names the same stable version |
 | the userland to DevTools (dotted) | the sysroot: libc, crt, headers, by path (`EMIBSD_SYSROOT`) | a binary the toolchain produces needs a libc; `std`'s rlibs compile without one, so the cycle breaks there |
 | DevTools to the release repository | the comp set: the artifacts by pin and checksum | it assembles and releases; it builds nothing of its own |
 
@@ -47,7 +47,7 @@ them is in this table.
 
 ## Hosts and targets
 
-| Host | Target | When | Stage0 for `rust/` |
+| Host | Target (LLVM's triple; Rust's name is `aarch64-emibsd-emibsd`, `llvm-target` the triple) | When | Stage0 for `rust/` |
 |---|---|---|---|
 | `aarch64-apple-darwin` | `aarch64-emibsd-emibsd8.0` | T1, T2: the development machine | rustup's 1.98.1 (`rust-toolchain.toml`) |
 | `x86_64-unknown-linux-gnu` | `aarch64-emibsd-emibsd8.0` | only if a consumer's CI needs it (open decision) | rustup's |
@@ -74,9 +74,11 @@ Installing any of them is the user's.
    (`llvm/DESIGN.md`). Proof: a C hello and a C++ hello, compiled for the target and run under
    the EmiBSD kernel in QEMU.
 2. **T2.** `rust/build/build.sh` runs `x.py dist` with a `config.toml` that names the host,
-   the target `aarch64-emibsd-emibsd8.0`, `llvm-config` from T1, the linker (T1's lld), the
-   sysroot, and `llvm.download-ci-llvm = false`. `std`'s rlibs need no libc to compile; the
-   hello needs the sysroot to link. Needs the `backtrace-rs` mirror first.
+   the target `aarch64-emibsd-emibsd` (`llvm-target` `aarch64-emibsd-emibsd8.0`), `llvm-config` from T1, the linker (T1's lld), the
+   sysroot, and `llvm.download-ci-llvm = false`; `core` and `alloc` for the kernel's
+   `aarch64-unknown-none-softfloat` too (D-0006). `std`'s rlibs need no libc to compile; the
+   hello needs the sysroot to link. The crates come vendored by `just fetch`; the mirrors
+   `backtrace-rs` and `libc` are pinned to what the release fixes (`rust/DESIGN.md`).
 3. **T3.** `dist/<name>-<version>-<host>.tar.zst` and `.sha256`, from a tagged commit,
    uploaded as a GitHub release of this repository. A consumer's recipe downloads by version
    and verifies the sum. Signed with signify when the userland ships it.

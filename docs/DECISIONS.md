@@ -29,6 +29,7 @@ Date: YYYY-MM-DD · Status: proposed | accepted | superseded by D-MMMM
 | D-0003 | 2026-10-31 | accepted | One LLVM, upstream's, from the fork; nothing of OpenBSD in DevTools |
 | D-0004 | 2026-10-31 | accepted; applied to LLVM 2026-10-31, Rust at T2 | EmiBSD's own target triple, `aarch64-emibsd-emibsd8.0`, carried as patches of ours |
 | D-0005 | 2026-10-31 | accepted | DevTools stands alone: its rules, policies and decisions live here |
+| D-0006 | 2026-10-31 | accepted | T2's scope: the kernel's target, the artifact's tools, the crates vendored by `just fetch`, the pins follow the release |
 
 ---
 
@@ -202,3 +203,48 @@ whole project is restated here in the form it takes for a toolchain repository:
   No path into them, no citation of their rules or logs.
 - A decision taken elsewhere that binds this repository is recorded here, in this log, in its
   own words, before it is acted on.
+
+---
+
+# D-0006: T2's scope: the kernel's target, the artifact's tools, the crates vendored by `just fetch`, the pins follow the release
+
+Date: 2026-10-31 · Status: accepted
+
+## Context
+T2 builds rustc with `x.py`. The maintainer asked whether the kernel compiles with these
+tools too ("voy a poder compilar mi kernel con estas devtools también cierto?"); the kernel
+is Rust on `aarch64-unknown-none-softfloat`, stable, no nightly, with `rustfmt`, `clippy`,
+`rust-src` and `llvm-tools` in its `rust-toolchain.toml`. `x.py` downloads a stage0, a CI
+LLVM, the submodules and the crates of `Cargo.lock` unless told otherwise; the git tag of a
+release carries no `vendor/`. `library/backtrace` is a submodule bootstrap requires; the
+`libc` crate std links comes from crates.io. The maintainer asked that nothing be pinned to
+"any commit" ("me suena a que pineamos cualquier commit").
+
+## Decision
+The maintainer, 2026-10-31, "dale tonses":
+- The kernel's target `aarch64-unknown-none-softfloat` is built by DevTools in T2: `core`,
+  `alloc` and `compiler_builtins` (`x86_64-unknown-none` when amd64 returns, D-0001).
+- The artifact ships rustc, `std`, cargo, clippy, rustfmt and the sources (`rust-src`);
+  `llvm-tools` are `llvm/`'s.
+- The crates.io dependencies are vendored once by `just fetch` (`cargo vendor --locked`,
+  the versions and checksums of the release's `Cargo.lock` files) into
+  `upstream/rust-vendor/`, their licences checked by `tools/crates.py` against
+  `docs/POLICIES.md`; the build runs with no network. The source tarball of Rust, which
+  carries `vendor/`, was not chosen: the sources come from the fork.
+- The pins follow the release: the stable tag of Rust is the one pin chosen; its submodules
+  (`cargo`, `backtrace`) and the crates are pinned to what that release fixes, never to a
+  tag or a commit of our choosing. `backtrace` at `d902726a` has no tag upstream and that is
+  right: it is what 1.98.1 ships. The `libc` crate is mirrored at the tag `0.2.185`, the
+  version `library/Cargo.lock` of 1.98.1 fixes for std, and EmiBSD's bindings are a patch
+  series of ours over it (D-0004).
+- Two mirrors created in the organisation by the maintainer, 2026-10-31:
+  `EmiBSD/rust-lang-backtrace-rs` and `EmiBSD/rust-lang-libc`.
+
+## Consequences
+- `rust/UPSTREAM.toml` carries the three submodules and `[vendor]`; `just check` is red until
+  the two mirrors exist, which is the message that they are missing.
+- `rust/build/build.sh` and `rust/DESIGN.md` (the plan in three slices and every
+  `config.toml` line with its reason); `rust/tests/check.sh` proves slice 1 on the host.
+- The kernel's target adds no patch: it is upstream's, tier 2.
+- The compiler's own `libc` (0.2.183 in the root `Cargo.lock`) needs EmiBSD only when rustc
+  runs on EmiBSD (T4); it is then patched the same way.
