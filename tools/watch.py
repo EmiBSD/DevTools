@@ -56,11 +56,11 @@ def latest(doc):
     if source == "github-releases":
         repo = github_repo(up["origin"])
         rel = json.loads(get(f"https://api.github.com/repos/{repo}/releases/latest"))
-        return rel["tag_name"], rel["html_url"], None
+        return rel["tag_name"].removeprefix(w.get("prefix", "")), rel["html_url"], None
     if source == "github-tags":
         repo = github_repo(up["origin"])
         tags = json.loads(get(f"https://api.github.com/repos/{repo}/tags?per_page=1"))
-        return tags[0]["name"], f"https://github.com/{repo}/tags", None
+        return tags[0]["name"].removeprefix(w.get("prefix", "")), f"https://github.com/{repo}/tags", None
     if source == "url":
         text = get(w["url"])
         m = re.search(w.get("pattern", r"(\S+)"), text)

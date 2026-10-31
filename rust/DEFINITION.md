@@ -25,7 +25,7 @@ The defaults installed under /etc, and how they differ from upstream's.
 
 ## Performance budget
 
-As OpenBSD builds it, on the same machine and input; a build flag that changes it is a
+As upstream builds it, on the same machine and input; a build flag that changes it is a
 decision in DESIGN.
 
 ## Security history
@@ -38,4 +38,4 @@ what the pin bump that closes them is, and `tests/cve/` for what we patched ours
 
 ## Open questions
 
-- Two LLVMs, decided 2026-10-23: rustc builds the LLVM of its src/llvm-project submodule (22.1.8, rust-lang's fork with rustc's own patches, mirrored) and llvm/ stays OpenBSD's (22.1.6 at the pin) for clang, lld and the C. rustc 1.98.1 requires LLVM >= 21 (src/bootstrap, check_llvm_version); the decision was taken believing OpenBSD's was 18.1.8, corrected 2026-10-31 (docs/TOOLCHAIN.md). Built with x.py, host first, then target aarch64-unknown-openbsd: the std for the tier 3 target is built as part of the toolchain, from a stable release's source, without nightly. Needs a stage0 rustc: rustup's on the host; on EmiBSD, the previous build. Other submodules (books, stdarch, backtrace) stay on rust-lang/ until one is needed.
+- One LLVM (Governance G-0015, 2026-10-31): rustc is built against llvm/'s upstream LLVM 22.1.6 through llvm-config (rustc 1.98.1 needs >= 21); its own src/llvm-project submodule is not fetched. Built with x.py, host first, then the target aarch64-unknown-openbsd: the std for the tier 3 target is built as part of the toolchain, from a stable release's source, without nightly. Stage0: rustup's rustc on the host; on EmiBSD, the previous build. library/backtrace needs its mirror before T2.

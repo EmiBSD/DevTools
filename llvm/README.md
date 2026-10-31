@@ -1,13 +1,16 @@
-# compiler/llvm
+# llvm
 
-The pinned LLVM release and how it is built for the system.
+Upstream LLVM at the pinned release tag, from the fork `EmiBSD/llvm-project`, built with
+LLVM's own CMake: clang, lld, LLVM's tools, and the runtimes compiler-rt, libunwind, libc++abi
+and libc++ for `aarch64-unknown-openbsd`. The one LLVM of EmiBSD: it compiles the C and C++
+of the system and it is the backend rustc builds against (Governance G-0015). Nothing of
+OpenBSD is in it.
 
-Covers, from OpenBSD's base system at the pin (its path in OpenBSD's `src`):
-
-- `clang` (gnu/usr.bin/clang)
-- `libcxx` (gnu/lib/libcxx)
-- `libcxxabi` (gnu/lib/libcxxabi)
-- `libclang_rt` (gnu/lib/libclang_rt)
-- `libcompiler_rt` (gnu/lib/libcompiler_rt)
-
-Nothing written yet.
+| File | What |
+|---|---|
+| `UPSTREAM.toml` | the pin: the fork at `llvmorg-22.1.6`, no patches |
+| `DEFINITION.md` | what it gives us and what we build of it |
+| `DESIGN.md` | the two CMake stages and the flags, with their reasons |
+| `DELIVERY.md` | the artifact and the comp set |
+| `build/build.sh` | the build: stage 1 the host tools, stage 2 the target runtimes |
+| `tests/` | what proves the artifact (T1) |

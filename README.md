@@ -6,7 +6,7 @@
 
 <p align="center"><em>Ferffy, the EmiBSD mascot: a <a href="https://en.wikipedia.org/wiki/Lithodes_santolla">centolla</a>, the child of Ferris (Rust's crab) and Puffy (OpenBSD's pufferfish).</em></p>
 
-<p align="center"><strong>The toolchains of EmiBSD, imported and built once: OpenBSD's LLVM for the C, a pinned stable Rust for the rest.</strong></p>
+<p align="center"><strong>The toolchains of EmiBSD, imported from the forks and built once: upstream LLVM for the C and for rustc, a pinned stable Rust.</strong></p>
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-ISC-007ec6" alt="License: ISC"></a>
@@ -19,20 +19,20 @@
 > **Not for production.** EmiBSD is an experiment. It runs only in QEMU, and its crypto,
 > network and storage code is unaudited. Do not use it to protect real data or real networks.
 
-The toolchains of [EmiBSD](https://www.emibsd.org), both imported and built once for every
-repository that needs them:
+The toolchains of [EmiBSD](https://www.emibsd.org), both imported, both from the forks alone,
+built once for every repository that needs them:
 
-- **`llvm/`**: LLVM as OpenBSD ships it, from the `gnu/llvm` tree of the pinned OpenBSD
-  source with OpenBSD's patches and build glue: clang, lld, libc++, libc++abi, compiler-rt.
-  Apache-2.0 with the LLVM exception. The compiler of the C.
-- **`rust/`**: rust-lang/rust at a pinned stable tag, built with `x.py` and its own LLVM
-  submodule: rustc, cargo, and `std` for `aarch64-unknown-openbsd`, a tier 3 target that this
-  way gets its standard library from a stable release's source, without nightly. Apache-2.0
-  and MIT.
+- **`llvm/`**: upstream LLVM at the tag `llvmorg-22.1.6`, from the fork `EmiBSD/llvm-project`,
+  built with its own CMake: clang, lld, the tools, and compiler-rt, libunwind, libc++abi and
+  libc++ for `aarch64-unknown-openbsd`. Apache-2.0 with the LLVM exception. The one compiler
+  of the system, and the backend of rustc.
+- **`rust/`**: rust-lang/rust at a pinned stable tag, built with `x.py` against `llvm/`:
+  rustc, cargo, and `std` for `aarch64-unknown-openbsd`, a tier 3 target that this way gets
+  its standard library from a stable release's source, without nightly. Apache-2.0 and MIT.
 
-Nothing here is written code. The sources come from read-only mirrors in the organisation
-(`OpenBSD-src`, `rust`, `llvm-project`, `cargo`), pinned in each `UPSTREAM.toml`; what is ours
-is the build glue, the patches with their reasons, and the artifacts.
+Nothing here is written code, and nothing of it comes from OpenBSD (Governance G-0015). The
+sources come from the read-only mirrors `llvm-project`, `rust` and `cargo`, pinned in each
+`UPSTREAM.toml`; what is ours is the build scripts and the artifacts.
 
 EmiBSD is not affiliated with or endorsed by the OpenBSD project, the LLVM project or the
 Rust project.
@@ -41,24 +41,25 @@ Rust project.
 
 ```mermaid
 flowchart LR
-    obsd["OpenBSD-src (mirror)"] -- "gnu/llvm 22" --> dev["DevTools"]
-    rust["rust, llvm-project, cargo (mirrors)"] -- "1.98.1" --> dev
+    llvm["llvm-project (mirror)"] -- "llvmorg-22.1.6" --> dev["DevTools"]
+    rust["rust, cargo (mirrors)"] -- "1.98.1" --> dev
     dev -- "clang, lld, libc++" --> ul["Userland"]
-    dev -- "clang today, rustc when self-hosted" --> k["Kernel"]
+    dev -- "rustc, once the system builds itself" --> k["Kernel"]
     dev -- "the comp set" --> os["OS"]
     ul -. "sysroot: libc, crt, headers" .-> dev
 ```
 
 The whole picture is in [Governance](https://github.com/EmiBSD/Governance),
-`docs/architecture.md`; this repository exists by its decision G-0012.
+`docs/architecture.md`; this repository exists by its decision G-0012 and takes nothing from
+OpenBSD by its decision G-0015.
 
 ## Milestones
 
 | | Scope | Proof | State |
 |---|---|---|---|
-| T0 | the repository, the pins moved from `Userland/compiler/`, the tools, the mirror check | `just check` green | met 2026-10-31 |
-| T1 | OpenBSD's LLVM built here for arm64 on the macOS host; Kernel's `just comp` glue moved | Kernel's `smoke-cc` and `smoke-install` pass with this clang | |
-| T2 | rustc with `x.py`, macOS host, target `aarch64-unknown-openbsd`, Userland's sysroot | a static Rust hello runs under Kernel in QEMU | |
+| T0 | the repository, the pins, the tools, the mirror check | `just check` green | met 2026-10-31 |
+| T1 | upstream LLVM 22.1.6 built from the fork with CMake on the macOS host: the host tools, then the target runtimes | a C and a C++ hello compiled for the target run under Kernel in QEMU | |
+| T2 | rustc with `x.py` against T1's LLVM, macOS host, target `aarch64-unknown-openbsd`, Userland's sysroot | a static Rust hello runs under Kernel in QEMU | |
 | T3 | GitHub releases: one tarball per host with `.sha256`; consumers fetch by pin | Userland's `just toolchain` installs it | |
 | T4 | self-hosted: rustc built on EmiBSD with T3 as stage0 | after Kernel's N9 | |
 
@@ -78,5 +79,5 @@ just check           # what costs nothing: pins, mirrors, scripts
 
 ## Licence
 
-The build glue, the patches and the documents are ISC ([LICENSE](LICENSE)). The toolchains
-keep their own licences, in their sources.
+The build scripts and the documents are ISC ([LICENSE](LICENSE)). The toolchains keep their
+own licences, in their sources.

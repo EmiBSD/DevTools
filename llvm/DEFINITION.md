@@ -1,46 +1,47 @@
-# llvm (imported; moved from Userland/compiler/llvm on 2026-10-31, Governance G-0012)
+# llvm (imported; Governance G-0012, G-0015)
 
-STATUS: see `STATUS`. Compiled from its upstream at the pin of `UPSTREAM.toml`, never
-rewritten (the user's decision of 2026-10-23). OpenBSD's `gnu/llvm, gnu/usr.bin/clang, gnu/lib/libcxx, gnu/lib/libcxxabi, gnu/lib/libclang_rt, gnu/lib/libcompiler_rt`; manual llvm(1).
+STATUS: see `STATUS`. Compiled from upstream LLVM at the pin of `UPSTREAM.toml`, never
+rewritten, never patched with anyone else's changes.
 
 ## What it gives us
 
+One compiler for the whole system: clang and clang++ for the C and C++ of the base system
+and of the imported programs, lld to link everything, the LLVM tools (`llvm-ar`,
+`llvm-objcopy`, `llvm-nm`, ...), the runtimes the target needs (compiler-rt's builtins,
+libunwind, libc++abi, libc++), and `libLLVM` with `llvm-config`, which is what rustc builds
+against (`rust/`).
+
 ## What we build of it
 
-The targets, libraries and tools taken from the source; what is left out and why.
+Projects `clang` and `lld`; runtimes `compiler-rt`, `libunwind`, `libcxxabi`, `libcxx`;
+backend `AArch64` (and `X86`, for Kernel's N10). Not built: lldb (open in G-0012), the
+other backends, the tests, the documentation.
 
 ## Constraints
 
-Which libc, libtls and other libraries of this repository it must link; static or dynamic;
-privileges.
+Stage 1 runs on the host and emits for `aarch64-unknown-openbsd`; stage 2 cross-compiles the
+runtimes against the sysroot it is given (`EMIBSD_SYSROOT`: libc, crt, headers). The build
+refuses to run without a sysroot rather than guess one.
 
 ## Compatibility
 
-Who in the base system depends on it and how (flags, output, exit codes, configuration
-paths). Our patches, if any, never change what callers see.
-
-## Configuration we ship
-
-The defaults installed under /etc, and how they differ from upstream's.
+Upstream's defaults for the `*-unknown-openbsd` triple, which upstream clang and lld
+support. What the base system's C expects of a compiler beyond upstream (flags of OpenBSD's
+own clang) is settled in Userland, where that C is built, not here.
 
 ## Performance budget
 
-As OpenBSD builds it, on the same machine and input; a build flag that changes it is a
-decision in DESIGN.
+Upstream's `Release` build; a flag that changes the emitted code is a decision in DESIGN.
 
 ## Security history
 
-Tracked against the upstream (`UPSTREAM.toml` `[security] cpe`): open advisories at the pin,
-what the pin bump that closes them is, and `tests/cve/` for what we patched ourselves.
+Tracked against the upstream (`UPSTREAM.toml` `[security] cpe`): open advisories at the
+pin, what the pin bump that closes them is, and `tests/cve/` for anything of ours.
 
 | CVE | Upstream fix | Here |
 |---|---|---|
 
 ## Open questions
 
-- The version at the pin is 22.1.6 (`gnu/usr.bin/clang/include/clang/Basic/Version.inc`,
-  OpenBSD's `Version.inc,v 1.16 2026/05/29`), not the 18.1.8 the two-LLVMs decision of
-  2026-10-23 assumed: rustc 1.98.1 (which needs 21 or newer) could build against it. Whether
-  one LLVM should serve both is the maintainer's to revisit; `docs/TOOLCHAIN.md`.
-
-- OpenBSD's patches (RETGUARD, -fret-clean, the fixed X18, BTI and PAC defaults) and its BSD-make build glue come with the tree; Kernel's `just comp` builds it this way today. The longest build of the repository: built once, cached.
+- lldb in or out (G-0012).
+- The host matrix: macOS arm64 first; Linux x86_64 only if a consumer's CI needs it.
