@@ -13,7 +13,7 @@ Navarrete Lineros, 2026-10-31.
 
 --- a/compiler-rt/CMakeLists.txt
 +++ b/compiler-rt/CMakeLists.txt
-@@ -223,7 +223,7 @@
+@@ -239,7 +239,7 @@
      set(${var}_LIBNAME "${CMAKE_MATCH_1}")
      set(${var}_SYSTEM 1)
    elseif (${var} STREQUAL "default")
@@ -53,9 +53,9 @@ Navarrete Lineros, 2026-10-31.
  #include <sys/auxv.h>
  #include "aarch64/hwcap.inc"
  #include "aarch64/lse_atomics/elf_aux_info.inc"
-@@ -71,7 +71,7 @@
- // clang-format off
- #if defined(__APPLE__)
+@@ -73,7 +73,7 @@
+ #include "aarch64/fmv/baremetal.inc"
+ #elif defined(__APPLE__)
  #include "aarch64/fmv/apple.inc"
 -#elif defined(__FreeBSD__) || defined(__OpenBSD__)
 +#elif defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__EmiBSD__)
@@ -64,7 +64,7 @@ Navarrete Lineros, 2026-10-31.
  #elif defined(__Fuchsia__)
 --- a/libcxx/include/__config
 +++ b/libcxx/include/__config
-@@ -138,7 +138,7 @@
+@@ -94,7 +94,7 @@
  //      When this option is used, the token passed to `std::random_device`'s
  //      constructor *must* be "/dev/urandom" -- anything else is an error.
  #  if defined(__APPLE__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__) ||                     \
@@ -73,7 +73,7 @@ Navarrete Lineros, 2026-10-31.
  #    define _LIBCPP_USING_ARC4_RANDOM
  #  elif defined(__wasi__) || defined(__EMSCRIPTEN__)
  #    define _LIBCPP_USING_GETENTROPY
-@@ -625,6 +625,7 @@
+@@ -213,6 +213,7 @@
          defined(__wasi__) ||                                                                                           \
          defined(__NetBSD__) ||                                                                                         \
          defined(__OpenBSD__) ||                                                                                        \
@@ -81,18 +81,18 @@ Navarrete Lineros, 2026-10-31.
          defined(__NuttX__) ||                                                                                          \
          defined(__linux__) ||                                                                                          \
          defined(__GNU__) ||                                                                                            \
-@@ -706,7 +707,7 @@
+@@ -298,7 +299,7 @@
  #  endif
  
  #  if defined(__BIONIC__) || defined(__NuttX__) || defined(__Fuchsia__) || defined(__wasi__) ||                        \
--      _LIBCPP_HAS_MUSL_LIBC || defined(__OpenBSD__) || defined(__LLVM_LIBC__)
-+      _LIBCPP_HAS_MUSL_LIBC || defined(__OpenBSD__) || defined(__EmiBSD__) || defined(__LLVM_LIBC__)
+-      _LIBCPP_HAS_MUSL_LIBC || defined(__OpenBSD__) || _LIBCPP_LIBC_LLVM_LIBC
++      _LIBCPP_HAS_MUSL_LIBC || defined(__OpenBSD__) || defined(__EmiBSD__) || _LIBCPP_LIBC_LLVM_LIBC
  #    define _LIBCPP_PROVIDES_DEFAULT_RUNE_TABLE
  #  endif
  
 --- a/libcxx/include/__cxx03/__config
 +++ b/libcxx/include/__cxx03/__config
-@@ -283,7 +283,7 @@
+@@ -276,7 +276,7 @@
  //      When this option is used, the token passed to `std::random_device`'s
  //      constructor *must* be "/dev/urandom" -- anything else is an error.
  #  if defined(__APPLE__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__) ||                     \
@@ -101,7 +101,7 @@ Navarrete Lineros, 2026-10-31.
  #    define _LIBCPP_USING_ARC4_RANDOM
  #  elif defined(__wasi__) || defined(__EMSCRIPTEN__)
  #    define _LIBCPP_USING_GETENTROPY
-@@ -678,6 +678,7 @@
+@@ -671,6 +671,7 @@
          defined(__wasi__) ||                                                                                           \
          defined(__NetBSD__) ||                                                                                         \
          defined(__OpenBSD__) ||                                                                                        \
@@ -109,7 +109,7 @@ Navarrete Lineros, 2026-10-31.
          defined(__NuttX__) ||                                                                                          \
          defined(__linux__) ||                                                                                          \
          defined(__GNU__) ||                                                                                            \
-@@ -757,7 +758,7 @@
+@@ -750,7 +751,7 @@
  #  endif
  
  #  if defined(__BIONIC__) || defined(__NuttX__) || defined(__Fuchsia__) || defined(__wasi__) ||                        \
@@ -120,15 +120,15 @@ Navarrete Lineros, 2026-10-31.
  
 --- a/libcxx/include/__locale_dir/locale_base_api.h
 +++ b/libcxx/include/__locale_dir/locale_base_api.h
-@@ -130,7 +130,7 @@
- //       will define those directly.
- #    if defined(__MVS__)
- #      include <__locale_dir/locale_base_api/ibm.h>
--#    elif defined(__OpenBSD__)
-+#    elif defined(__OpenBSD__) || defined(__EmiBSD__)
- #      include <__locale_dir/locale_base_api/openbsd.h>
- #    endif
- 
+@@ -114,7 +114,7 @@
+ #    include <__locale_dir/support/freebsd.h>
+ #  elif defined(__NetBSD__)
+ #    include <__locale_dir/support/netbsd.h>
+-#  elif defined(__OpenBSD__)
++#  elif defined(__OpenBSD__) || defined(__EmiBSD__)
+ #    include <__locale_dir/support/openbsd.h>
+ #  elif defined(_LIBCPP_MSVCRT_LIKE)
+ #    include <__locale_dir/support/windows.h>
 --- a/libcxx/include/__cxx03/__locale_dir/locale_base_api.h
 +++ b/libcxx/include/__cxx03/__locale_dir/locale_base_api.h
 @@ -19,7 +19,7 @@
@@ -140,9 +140,28 @@ Navarrete Lineros, 2026-10-31.
  #  include <__cxx03/__locale_dir/locale_base_api/openbsd.h>
  #elif defined(__Fuchsia__)
  #  include <__cxx03/__locale_dir/locale_base_api/fuchsia.h>
+--- a/libcxx/include/__locale_dir/support/openbsd.h
++++ b/libcxx/include/__locale_dir/support/openbsd.h
+@@ -19,6 +19,7 @@
+ #include <stdio.h>
+ #include <stdlib.h>
+ #include <string.h>
++#include <langinfo.h>
+ #include <time.h>
+ #if _LIBCPP_HAS_WIDE_CHARACTERS
+ #  include <wchar.h>
+@@ -196,6 +197,8 @@
+   return mbsrtowcs(__dest, __src, __len, __ps);
+ }
+ #  endif // _LIBCPP_HAS_WIDE_CHARACTERS
++
++inline const char* __get_locale_encoding(__locale_t __loc) { return ::nl_langinfo_l(CODESET, __loc); }
+ #endif   // _LIBCPP_BUILDING_LIBRARY
+ 
+ _LIBCPP_DIAGNOSTIC_PUSH
 --- a/libcxx/src/atomic.cpp
 +++ b/libcxx/src/atomic.cpp
-@@ -39,11 +39,11 @@
+@@ -51,11 +51,11 @@
  
  #  define _LIBCPP_FUTEX(...) syscall(SYS_futex, __VA_ARGS__)
  
@@ -158,7 +177,7 @@ Navarrete Lineros, 2026-10-31.
  #elif defined(_WIN32)
 --- a/libcxx/src/chrono.cpp
 +++ b/libcxx/src/chrono.cpp
-@@ -37,7 +37,7 @@
+@@ -36,7 +36,7 @@
  
  // OpenBSD and GPU do not have a fully conformant suite of POSIX timers, but
  // it does have clock_gettime and CLOCK_MONOTONIC which is all we need.

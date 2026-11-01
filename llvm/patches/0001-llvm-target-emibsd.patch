@@ -19,7 +19,7 @@ upstream when stable. Author: Emilio Navarrete Lineros, 2026-10-31.
 
 --- a/llvm/include/llvm/TargetParser/Triple.h
 +++ b/llvm/include/llvm/TargetParser/Triple.h
-@@ -203,13 +203,15 @@
+@@ -295,13 +295,15 @@
      OpenEmbedded,
      Intel,
      Meta,
@@ -36,18 +36,15 @@ upstream when stable. Author: Emilio Navarrete Lineros, 2026-10-31.
      FreeBSD,
      Fuchsia,
      IOS,
-@@ -655,6 +657,10 @@
-     return getOS() == Triple::OpenBSD;
-   }
+@@ -743,6 +745,7 @@
+   bool isOSNetBSD() const { return getOS() == Triple::NetBSD; }
  
-+  bool isOSEmiBSD() const {
-+    return getOS() == Triple::EmiBSD;
-+  }
-+
-   bool isOSFreeBSD() const {
-     return getOS() == Triple::FreeBSD;
-   }
-@@ -1209,7 +1215,7 @@
+   bool isOSOpenBSD() const { return getOS() == Triple::OpenBSD; }
++  bool isOSEmiBSD() const { return getOS() == Triple::EmiBSD; }
+ 
+   bool isOSFreeBSD() const { return getOS() == Triple::FreeBSD; }
+ 
+@@ -1275,7 +1278,7 @@
    /// Note: Android API level 29 (10) introduced ELF TLS.
    bool hasDefaultEmulatedTLS() const {
      return (isAndroid() && isAndroidVersionLT(29)) || isOSOpenBSD() ||
@@ -56,40 +53,24 @@ upstream when stable. Author: Emilio Navarrete Lineros, 2026-10-31.
    }
  
    /// True if the target uses TLSDESC by default.
---- a/llvm/lib/TargetParser/Triple.cpp
-+++ b/llvm/lib/TargetParser/Triple.cpp
-@@ -269,6 +269,7 @@
-   case AMD: return "amd";
-   case Apple: return "apple";
-   case CSR: return "csr";
-+  case EmiBSDVendor: return "emibsd";
-   case Freescale: return "fsl";
-   case IBM: return "ibm";
-   case ImaginationTechnologies: return "img";
-@@ -299,6 +300,7 @@
-   case CUDA: return "cuda";
-   case Darwin: return "darwin";
-   case DragonFly: return "dragonfly";
-+  case EmiBSD: return "emibsd";
-   case DriverKit: return "driverkit";
-   case ELFIAMCU: return "elfiamcu";
-   case Emscripten: return "emscripten";
-@@ -703,6 +705,7 @@
-       .Case("oe", Triple::OpenEmbedded)
-       .Case("intel", Triple::Intel)
-       .Case("meta", Triple::Meta)
-+      .Case("emibsd", Triple::EmiBSDVendor)
-       .Default(Triple::UnknownVendor);
- }
+--- a/llvm/include/llvm/TargetParser/TripleName.def
++++ b/llvm/include/llvm/TargetParser/TripleName.def
+@@ -31,6 +31,7 @@
  
-@@ -710,6 +713,7 @@
-   return StringSwitch<Triple::OSType>(OSName)
-       .StartsWith("darwin", Triple::Darwin)
-       .StartsWith("dragonfly", Triple::DragonFly)
-+      .StartsWith("emibsd", Triple::EmiBSD)
-       .StartsWith("freebsd", Triple::FreeBSD)
-       .StartsWith("fuchsia", Triple::Fuchsia)
-       .StartsWith("ios", Triple::IOS)
+ TRIPLE_OS(Darwin, "darwin")
+ TRIPLE_OS(DragonFly, "dragonfly")
++TRIPLE_OS(EmiBSD, "emibsd")
+ TRIPLE_OS(FreeBSD, "freebsd")
+ TRIPLE_OS(Fuchsia, "fuchsia")
+ TRIPLE_OS(IOS, "ios")
+@@ -193,6 +194,7 @@
+ TRIPLE_VENDOR_ALIAS(SCEI, "sie")
+ TRIPLE_VENDOR(SUSE, "suse")
+ TRIPLE_VENDOR(Meta, "meta")
++TRIPLE_VENDOR(EmiBSDVendor, "emibsd")
+ 
+ #undef TRIPLE_VENDOR
+ #undef TRIPLE_VENDOR_ALIAS
 --- a/llvm/include/llvm/IR/RuntimeLibcalls.td
 +++ b/llvm/include/llvm/IR/RuntimeLibcalls.td
 @@ -17,8 +17,10 @@
@@ -105,7 +86,7 @@ upstream when stable. Author: Emilio Navarrete Lineros, 2026-10-31.
  def isOSWindows : RuntimeLibcallPredicate<"TT.isOSWindows()">;
  def isNotOSWindows : RuntimeLibcallPredicate<"!TT.isOSWindows()">;
  def isNotOSLinux : RuntimeLibcallPredicate<[{!TT.isOSLinux()}]>;
-@@ -31,10 +33,10 @@
+@@ -32,10 +34,10 @@
    [{TT.isWindowsMSVCEnvironment()}]>;
  
  def isNotOSLinuxAndNotOSOpenBSD : RuntimeLibcallPredicate<
@@ -118,7 +99,7 @@ upstream when stable. Author: Emilio Navarrete Lineros, 2026-10-31.
  
  def isNotPS : RuntimeLibcallPredicate<
    [{!TT.isPS()}]>;
-@@ -42,7 +44,7 @@
+@@ -43,7 +45,7 @@
  // OpenBSD uses __guard_local. AIX uses __ssp_canary_word, MSVC/Windows
  // Itanium uses __security_cookie
  def hasStackChkFail : RuntimeLibcallPredicate<
