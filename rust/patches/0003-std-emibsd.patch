@@ -359,7 +359,7 @@ tag, offered upstream when stable. Author: Emilio Navarrete Lineros,
  #[cfg(target_os = "redox")]
 --- a/library/std/src/os/unix/mod.rs
 +++ b/library/std/src/os/unix/mod.rs
-@@ -73,6 +73,8 @@
+@@ -74,6 +74,8 @@
      pub use crate::os::nto::*;
      #[cfg(target_os = "nuttx")]
      pub use crate::os::nuttx::*;
@@ -370,7 +370,7 @@ tag, offered upstream when stable. Author: Emilio Navarrete Lineros,
      #[cfg(target_os = "redox")]
 --- a/library/std/src/os/unix/net/addr.rs
 +++ b/library/std/src/os/unix/net/addr.rs
-@@ -104,7 +104,7 @@
+@@ -113,7 +113,7 @@
          addr: libc::sockaddr_un,
          mut len: libc::socklen_t,
      ) -> io::Result<SocketAddr> {
@@ -399,7 +399,7 @@ tag, offered upstream when stable. Author: Emilio Navarrete Lineros,
      target_os = "netbsd",
      target_os = "solaris",
      target_os = "illumos",
-@@ -836,11 +836,11 @@
+@@ -858,11 +858,11 @@
      /// Set the id of the socket for network filtering purpose
      ///
      #[cfg_attr(
@@ -413,7 +413,7 @@ tag, offered upstream when stable. Author: Emilio Navarrete Lineros,
          doc = "```ignore"
      )]
      /// #![feature(unix_set_mark)]
-@@ -852,7 +852,7 @@
+@@ -874,7 +874,7 @@
      ///     Ok(())
      /// }
      /// ```
@@ -424,7 +424,7 @@ tag, offered upstream when stable. Author: Emilio Navarrete Lineros,
          self.0.set_mark(mark)
 --- a/library/std/src/os/unix/net/listener.rs
 +++ b/library/std/src/os/unix/net/listener.rs
-@@ -85,7 +85,7 @@
+@@ -87,7 +87,7 @@
                  // Silently capped to `kern.ipc.soacceptqueue`.
                  target_os = "freebsd",
                  // Silently capped to `kern.somaxconn sysctl`.
@@ -433,7 +433,7 @@ tag, offered upstream when stable. Author: Emilio Navarrete Lineros,
                  // Silently capped to the default 128.
                  target_vendor = "apple",
              ))]
-@@ -97,7 +97,7 @@
+@@ -99,7 +99,7 @@
                  target_os = "horizon",
                  target_os = "linux",
                  target_os = "freebsd",
@@ -482,16 +482,16 @@ tag, offered upstream when stable. Author: Emilio Navarrete Lineros,
      target_os = "nto",
      target_os = "qnx",
      target_vendor = "apple",
-@@ -254,7 +254,7 @@
+@@ -262,7 +262,7 @@
          target_os = "dragonfly",
          target_os = "freebsd",
          target_os = "netbsd",
 -        target_os = "openbsd",
 +        any(target_os = "openbsd", target_os = "emibsd"),
          target_os = "nto",
+         target_os = "qnx",
          target_vendor = "apple",
-         target_os = "cygwin"
-@@ -410,11 +410,11 @@
+@@ -426,11 +426,11 @@
      /// Set the id of the socket for network filtering purpose
      ///
      #[cfg_attr(
@@ -505,7 +505,7 @@ tag, offered upstream when stable. Author: Emilio Navarrete Lineros,
          doc = "```ignore"
      )]
      /// #![feature(unix_set_mark)]
-@@ -426,7 +426,7 @@
+@@ -442,7 +442,7 @@
      ///     Ok(())
      /// }
      /// ```
@@ -578,7 +578,7 @@ tag, offered upstream when stable. Author: Emilio Navarrete Lineros,
      pub const FAMILY: &str = "unix";
 --- a/library/std/src/sys/fd/unix.rs
 +++ b/library/std/src/sys/fd/unix.rs
-@@ -63,7 +63,7 @@
+@@ -89,7 +89,7 @@
      target_os = "dragonfly",
      target_os = "freebsd",
      target_os = "netbsd",
@@ -587,7 +587,7 @@ tag, offered upstream when stable. Author: Emilio Navarrete Lineros,
      target_vendor = "apple",
      target_os = "cygwin",
  ))]
-@@ -93,7 +93,7 @@
+@@ -119,7 +119,7 @@
      target_os = "nuttx",
      target_os = "nto",
      target_os = "qnx",
@@ -596,16 +596,16 @@ tag, offered upstream when stable. Author: Emilio Navarrete Lineros,
      target_os = "horizon",
      target_os = "vita",
      target_vendor = "apple",
-@@ -220,7 +220,7 @@
+@@ -246,7 +246,7 @@
          target_os = "illumos",
          target_os = "linux",
          target_os = "netbsd",
 -        target_os = "openbsd", // OpenBSD 2.7
 +        any(target_os = "openbsd", target_os = "emibsd"), // OpenBSD 2.7
+         all(target_os = "macos", target_arch = "aarch64"),
      ))]
      pub fn read_vectored_at(&self, bufs: &mut [IoSliceMut<'_>], offset: u64) -> io::Result<usize> {
-         let ret = cvt(unsafe {
-@@ -245,7 +245,7 @@
+@@ -272,7 +272,7 @@
          target_os = "illumos",
          target_os = "linux",
          target_os = "netbsd",
@@ -614,16 +614,16 @@ tag, offered upstream when stable. Author: Emilio Navarrete Lineros,
          target_vendor = "apple",
      )))]
      pub fn read_vectored_at(&self, bufs: &mut [IoSliceMut<'_>], offset: u64) -> io::Result<usize> {
-@@ -427,7 +427,7 @@
+@@ -442,7 +442,7 @@
          target_os = "illumos",
          target_os = "linux",
          target_os = "netbsd",
 -        target_os = "openbsd", // OpenBSD 2.7
 +        any(target_os = "openbsd", target_os = "emibsd"), // OpenBSD 2.7
+         all(target_os = "macos", target_arch = "aarch64"),
      ))]
      pub fn write_vectored_at(&self, bufs: &[IoSlice<'_>], offset: u64) -> io::Result<usize> {
-         let ret = cvt(unsafe {
-@@ -452,7 +452,7 @@
+@@ -468,7 +468,7 @@
          target_os = "illumos",
          target_os = "linux",
          target_os = "netbsd",
@@ -634,7 +634,7 @@ tag, offered upstream when stable. Author: Emilio Navarrete Lineros,
      pub fn write_vectored_at(&self, bufs: &[IoSlice<'_>], offset: u64) -> io::Result<usize> {
 --- a/library/std/src/sys/fs/unix.rs
 +++ b/library/std/src/sys/fs/unix.rs
-@@ -708,7 +708,7 @@
+@@ -648,7 +648,7 @@
  
      #[cfg(any(
          target_os = "freebsd",
@@ -643,7 +643,7 @@ tag, offered upstream when stable. Author: Emilio Navarrete Lineros,
          target_vendor = "apple",
          target_os = "cygwin",
      ))]
-@@ -718,7 +718,7 @@
+@@ -658,7 +658,7 @@
  
      #[cfg(not(any(
          target_os = "freebsd",
@@ -652,34 +652,25 @@ tag, offered upstream when stable. Author: Emilio Navarrete Lineros,
          target_os = "vita",
          target_vendor = "apple",
          target_os = "cygwin",
-@@ -1178,7 +1178,7 @@
-         self.entry.d_ino as u64
-     }
- 
--    #[cfg(any(target_os = "openbsd", target_os = "netbsd", target_os = "dragonfly"))]
-+    #[cfg(any(any(target_os = "openbsd", target_os = "emibsd"), target_os = "netbsd", target_os = "dragonfly"))]
-     pub fn ino(&self) -> u64 {
-         self.entry.d_fileno as u64
-     }
-@@ -1192,7 +1192,7 @@
- 
-     #[cfg(any(
-         target_os = "netbsd",
--        target_os = "openbsd",
-+        any(target_os = "openbsd", target_os = "emibsd"),
-         target_os = "dragonfly",
-         target_vendor = "apple",
-     ))]
-@@ -1207,7 +1207,7 @@
-     }
-     #[cfg(not(any(
-         target_os = "netbsd",
--        target_os = "openbsd",
-+        any(target_os = "openbsd", target_os = "emibsd"),
-         target_os = "dragonfly",
-         target_vendor = "apple",
-     )))]
-@@ -1439,7 +1439,7 @@
+@@ -914,7 +914,7 @@
+                         target_os = "dragonfly",
+                         target_os = "freebsd",
+                         target_os = "netbsd",
+-                        target_os = "openbsd",
++                        any(target_os = "openbsd", target_os = "emibsd"),
+                     ))]
+                     d_ino: (*entry_ptr).d_fileno,
+                     #[cfg(any(target_os = "nuttx", target_os = "vita",))]
+@@ -924,7 +924,7 @@
+                         target_os = "freebsd",
+                         target_os = "netbsd",
+                         target_os = "nuttx",
+-                        target_os = "openbsd",
++                        any(target_os = "openbsd", target_os = "emibsd"),
+                         target_os = "vita",
+                     )))]
+                     d_ino: (*entry_ptr).d_ino as u64,
+@@ -1290,7 +1290,7 @@
              target_os = "cygwin",
              target_os = "android",
              target_os = "netbsd",
@@ -688,7 +679,7 @@ tag, offered upstream when stable. Author: Emilio Navarrete Lineros,
              target_os = "nto",
              target_os = "qnx",
              target_os = "hurd",
-@@ -1454,7 +1454,7 @@
+@@ -1306,7 +1306,7 @@
              target_os = "linux",
              target_os = "cygwin",
              target_os = "netbsd",
@@ -697,7 +688,7 @@ tag, offered upstream when stable. Author: Emilio Navarrete Lineros,
              target_os = "nto",
              target_os = "qnx",
              target_os = "hurd",
-@@ -1473,7 +1473,7 @@
+@@ -1326,7 +1326,7 @@
                  target_os = "hurd",
                  target_os = "linux",
                  target_os = "netbsd",
@@ -706,7 +697,7 @@ tag, offered upstream when stable. Author: Emilio Navarrete Lineros,
                  target_os = "cygwin",
                  target_os = "illumos",
                  target_os = "aix",
-@@ -1497,7 +1497,7 @@
+@@ -1350,7 +1350,7 @@
                  target_os = "hurd",
                  target_os = "linux",
                  target_os = "netbsd",
@@ -715,7 +706,7 @@ tag, offered upstream when stable. Author: Emilio Navarrete Lineros,
                  target_os = "cygwin",
                  target_os = "illumos",
                  target_os = "aix",
-@@ -1521,7 +1521,7 @@
+@@ -1374,7 +1374,7 @@
                  target_os = "hurd",
                  target_os = "linux",
                  target_os = "netbsd",
@@ -724,7 +715,7 @@ tag, offered upstream when stable. Author: Emilio Navarrete Lineros,
                  target_os = "cygwin",
                  target_os = "illumos",
                  target_os = "aix",
-@@ -1556,7 +1556,7 @@
+@@ -1409,7 +1409,7 @@
                  target_os = "hurd",
                  target_os = "linux",
                  target_os = "netbsd",
@@ -733,7 +724,7 @@ tag, offered upstream when stable. Author: Emilio Navarrete Lineros,
                  target_os = "cygwin",
                  target_os = "illumos",
                  target_os = "aix",
-@@ -1591,7 +1591,7 @@
+@@ -1444,7 +1444,7 @@
                  target_os = "hurd",
                  target_os = "linux",
                  target_os = "netbsd",
@@ -744,7 +735,7 @@ tag, offered upstream when stable. Author: Emilio Navarrete Lineros,
                  target_os = "aix",
 --- a/library/std/src/sys/io/error/unix.rs
 +++ b/library/std/src/sys/io/error/unix.rs
-@@ -16,7 +16,7 @@
+@@ -24,7 +24,7 @@
      #[cfg_attr(
          any(
              target_os = "netbsd",
@@ -755,7 +746,7 @@ tag, offered upstream when stable. Author: Emilio Navarrete Lineros,
              target_os = "redox",
 --- a/library/std/src/sys/net/connection/socket/mod.rs
 +++ b/library/std/src/sys/net/connection/socket/mod.rs
-@@ -39,7 +39,7 @@
+@@ -43,7 +43,7 @@
      any(
          target_os = "dragonfly",
          target_os = "freebsd",
@@ -764,7 +755,7 @@ tag, offered upstream when stable. Author: Emilio Navarrete Lineros,
          target_os = "netbsd",
          target_os = "illumos",
          target_os = "solaris",
-@@ -64,7 +64,7 @@
+@@ -68,7 +68,7 @@
          target_os = "linux", target_os = "android",
          target_os = "hurd",
          target_os = "dragonfly", target_os = "freebsd",
@@ -773,7 +764,7 @@ tag, offered upstream when stable. Author: Emilio Navarrete Lineros,
          target_os = "solaris", target_os = "illumos",
          target_os = "haiku",
          target_os = "nto", target_os = "qnx",
-@@ -80,7 +80,7 @@
+@@ -84,7 +84,7 @@
  cfg_select! {
      any(
          target_os = "dragonfly", target_os = "freebsd",
@@ -811,7 +802,7 @@ tag, offered upstream when stable. Author: Emilio Navarrete Lineros,
                  target_os = "cygwin",
              ) => {
                  unsafe {
-@@ -610,13 +610,13 @@
+@@ -607,13 +607,13 @@
          self.0.set_nonblocking(nonblocking)
      }
  
@@ -827,47 +818,9 @@ tag, offered upstream when stable. Author: Emilio Navarrete Lineros,
          let option = libc::SO_RTABLE;
          unsafe { setsockopt(self, libc::SOL_SOCKET, option, mark as libc::c_int) }
      }
---- a/library/std/src/sys/pal/unix/futex.rs
-+++ b/library/std/src/sys/pal/unix/futex.rs
-@@ -3,7 +3,7 @@
-     target_os = "android",
-     all(target_os = "emscripten", target_feature = "atomics"),
-     target_os = "freebsd",
--    target_os = "openbsd",
-+    any(target_os = "openbsd", target_os = "emibsd"),
-     target_os = "dragonfly",
-     target_os = "fuchsia",
- ))]
-@@ -147,7 +147,7 @@
-     };
- }
- 
--#[cfg(target_os = "openbsd")]
-+#[cfg(any(target_os = "openbsd", target_os = "emibsd"))]
- pub fn futex_wait(futex: &Atomic<u32>, expected: u32, timeout: Option<Duration>) -> bool {
-     use super::time::Timespec;
-     use crate::ptr::{null, null_mut};
-@@ -170,7 +170,7 @@
-     r == 0 || crate::sys::io::errno() != libc::ETIMEDOUT
- }
- 
--#[cfg(target_os = "openbsd")]
-+#[cfg(any(target_os = "openbsd", target_os = "emibsd"))]
- pub fn futex_wake(futex: &Atomic<u32>) -> bool {
-     use crate::ptr::{null, null_mut};
-     unsafe {
-@@ -184,7 +184,7 @@
-     }
- }
- 
--#[cfg(target_os = "openbsd")]
-+#[cfg(any(target_os = "openbsd", target_os = "emibsd"))]
- pub fn futex_wake_all(futex: &Atomic<u32>) {
-     use crate::ptr::{null, null_mut};
-     unsafe {
 --- a/library/std/src/sys/pal/unix/mod.rs
 +++ b/library/std/src/sys/pal/unix/mod.rs
-@@ -320,7 +320,7 @@
+@@ -319,7 +319,7 @@
          #[link(name = "rt")]
          unsafe extern "C" {}
      }
@@ -896,7 +849,7 @@ tag, offered upstream when stable. Author: Emilio Navarrete Lineros,
          target_os = "solaris",
          target_os = "illumos",
      )
-@@ -207,14 +207,14 @@
+@@ -201,14 +201,14 @@
          // otherwise the said mapping will fail as a no-op on most systems
          // and has a different meaning on FreeBSD
          #[cfg(any(
@@ -913,7 +866,7 @@ tag, offered upstream when stable. Author: Emilio Navarrete Lineros,
              target_os = "netbsd",
              target_os = "linux",
              target_os = "dragonfly",
-@@ -334,7 +334,7 @@
+@@ -328,7 +328,7 @@
          Some(stackptr.map_addr(|addr| addr - libc::pthread_get_stacksize_np(th)))
      }
  
@@ -922,7 +875,7 @@ tag, offered upstream when stable. Author: Emilio Navarrete Lineros,
      unsafe fn get_stack_start() -> Option<*mut libc::c_void> {
          let mut current_stack: libc::stack_t = crate::mem::zeroed();
          assert_eq!(libc::pthread_stackseg_np(libc::pthread_self(), &mut current_stack), 0);
-@@ -419,7 +419,7 @@
+@@ -413,7 +413,7 @@
                  // The FreeBSD code cannot be checked on non-BSDs.
                  #[cfg(target_os = "freebsd")]
                  install_main_guard_freebsd(page_size)
@@ -931,7 +884,7 @@ tag, offered upstream when stable. Author: Emilio Navarrete Lineros,
                  install_main_guard_bsds(page_size)
              } else {
                  install_main_guard_default(page_size)
-@@ -551,7 +551,7 @@
+@@ -545,7 +545,7 @@
  
      #[cfg(any(
          target_os = "macos",
@@ -940,7 +893,7 @@ tag, offered upstream when stable. Author: Emilio Navarrete Lineros,
          target_os = "solaris",
          target_os = "illumos",
      ))]
-@@ -642,7 +642,7 @@
+@@ -636,7 +636,7 @@
          target_os = "hurd",
          target_os = "macos",
          target_os = "netbsd",
@@ -1088,7 +1041,7 @@ tag, offered upstream when stable. Author: Emilio Navarrete Lineros,
              // SAFETY: FFI call with no preconditions.
              let id: libc::pid_t = unsafe { libc::getthrid() };
              Some(id as u64)
-@@ -450,7 +450,7 @@
+@@ -451,7 +451,7 @@
      }
  }
  
@@ -1110,7 +1063,7 @@ tag, offered upstream when stable. Author: Emilio Navarrete Lineros,
              all(target_family = "wasm", target_feature = "atomics"),
 --- a/library/unwind/src/lib.rs
 +++ b/library/unwind/src/lib.rs
-@@ -169,14 +169,19 @@
+@@ -176,14 +176,19 @@
  #[link(name = "gcc_s", cfg(not(target_feature = "crt-static")))]
  unsafe extern "C" {}
  
@@ -1132,3 +1085,43 @@ tag, offered upstream when stable. Author: Emilio Navarrete Lineros,
  #[cfg(any(target_os = "solaris", target_os = "illumos"))]
  #[link(name = "gcc_s")]
  unsafe extern "C" {}
+--- a/library/std/src/sys/sync/futex/mod.rs
++++ b/library/std/src/sys/sync/futex/mod.rs
+@@ -4,7 +4,7 @@
+         target_os = "android",
+         all(target_os = "emscripten", target_feature = "atomics"),
+         target_os = "freebsd",
+-        target_os = "openbsd",
++        any(target_os = "openbsd", target_os = "emibsd"),
+         target_os = "dragonfly",
+         target_os = "fuchsia",
+     ) => {
+--- a/library/std/src/sys/sync/futex/unix.rs
++++ b/library/std/src/sys/sync/futex/unix.rs
+@@ -137,7 +137,7 @@
+     };
+ }
+ 
+-#[cfg(target_os = "openbsd")]
++#[cfg(any(target_os = "openbsd", target_os = "emibsd"))]
+ pub fn futex_wait(futex: &Atomic<u32>, expected: u32, timeout: Option<Duration>) -> bool {
+     use crate::ptr::{null, null_mut};
+     use crate::sys::pal::time::Timespec;
+@@ -160,7 +160,7 @@
+     r == 0 || crate::sys::io::errno() != libc::ETIMEDOUT
+ }
+ 
+-#[cfg(target_os = "openbsd")]
++#[cfg(any(target_os = "openbsd", target_os = "emibsd"))]
+ pub fn futex_wake(futex: &Atomic<u32>) -> bool {
+     use crate::ptr::{null, null_mut};
+     unsafe {
+@@ -174,7 +174,7 @@
+     }
+ }
+ 
+-#[cfg(target_os = "openbsd")]
++#[cfg(any(target_os = "openbsd", target_os = "emibsd"))]
+ pub fn futex_wake_all(futex: &Atomic<u32>) {
+     use crate::ptr::{null, null_mut};
+     unsafe {

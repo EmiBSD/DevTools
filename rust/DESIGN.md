@@ -60,7 +60,7 @@ The plan of T2 (the maintainer, 2026-10-31, D-0006), in three slices:
 ## Licences of the vendored crates (docs/POLICIES.md)
 
 `tools/crates.py` (`just crates rust`, part of `just check`) reads every crate of
-`upstream/rust-vendor/`: 1,192 at 1.98.1 over the eight workspaces the tree carries, nothing GPL
+`upstream/rust-vendor/`: 1,182 at 1.99.1 over the eight workspaces the tree carries, nothing GPL
 (`self_cell` is Apache-2.0 OR GPL-2.0-only; the Apache side applies; the GCC backend's
 `gccjit` crates, GPL-3.0, stay out with the backend itself, `UPSTREAM.toml`'s `path`). Six are MPL-2.0, the family POLICIES.md admits with a
 written reason, which is this: MPL-2.0 is a file-level copyleft, it obliges to keep the source
@@ -80,7 +80,7 @@ One line per patch of `patches/`: what it changes and why it could not stay upst
 |---|---|
 | `0002-rustc-target-emibsd` | `Os::EmiBsd`, `spec/base/emibsd.rs` (what the ABI asks: PIE, dynamic, emulated TLS, full RELRO, frame pointers, structs returned as integers), the target `aarch64-emibsd-emibsd` with `llvm-target` `aarch64-emibsd-emibsd8.0`, vendor `emibsd`, tier 3 |
 | `0003-std-emibsd` | `target_os = "emibsd"` joins every `openbsd` condition of std, unwind and backtrace (the libc interface is the same); EmiBSD's own where the name counts: `std::os::emibsd`, `env::consts::OS`, std's build script; the unwinder links `libunwind` beside `libc++abi` |
-| `0004-libc-emibsd` | the libc crate from its mirror (`.emibsd/libc`, 0.2.185): `emibsd` joins `openbsd` in its module selection and check-cfg; `build.sh` places it, patched, in the vendored `libc-0.2.185`'s stead with no checksum, so cargo builds it as the registry crate it replaces (same lint cap; a path dependency would surface upstream's latent warnings under `warnings = deny`); `library/Cargo.lock` drops libc's registry checksum, the one line the lock changes |
+| `0004-libc-emibsd` | the libc crate from its mirror (`.emibsd/libc`, 0.2.189, what 1.99.1's `library/Cargo.lock` fixes): `emibsd` joins `openbsd` in its module selection and check-cfg; `build.sh` places it, patched, in the vendored `libc-0.2.185`'s stead with no checksum, so cargo builds it as the registry crate it replaces (same lint cap; a path dependency would surface upstream's latent warnings under `warnings = deny`); `library/Cargo.lock` drops libc's registry checksum, the one line the lock changes |
 | `0001-bootstrap-vendor-what-is-there` | bootstrap's `default_paths_to_vendor` keeps only the workspaces whose manifest and required submodules are in the tree: `generate-copyright` (run by `dist::Rustc` for the COPYRIGHT files) scans that list with `cargo metadata` and failed on the documentation books and `rustc-perf`, submodules this tree does not carry; the build glue, nothing of what the compiler emits |
 
 
