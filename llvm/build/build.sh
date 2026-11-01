@@ -77,7 +77,9 @@ cmake -G Ninja -S "$SRC/llvm" -B "$OUT/host" \
     -DLLVM_DISTRIBUTION_COMPONENTS="$DISTRIBUTION" \
     -DLLVM_INCLUDE_TESTS=OFF -DLLVM_INCLUDE_BENCHMARKS=OFF -DLLVM_INCLUDE_DOCS=OFF \
     -DCLANG_INCLUDE_TESTS=OFF
-ninja -C "$OUT/host" -j "$JOBS" install-distribution
+# Everything first (rustc's build reads llvm-config and the LLVM tools it ships from this
+# build tree), then the distribution alone is installed.
+ninja -C "$OUT/host" -j "$JOBS" all install-distribution
 
 # Stage 2, as upstream's own runtimes bootstrap does it (llvm/runtimes/CMakeLists.txt):
 # first compiler-rt's builtins alone, telling CMake the compilers work (its link test
