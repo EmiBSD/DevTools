@@ -37,6 +37,9 @@ for t in "$@"; do
     zstd -dc "$t" | tar -xOf - "$(basename "$t" .tar.zst)/MANIFEST" | grep -q "^tag: $tag\$" \
         || { echo "release: $t was not made from $tag (its MANIFEST says otherwise): just dist $name again" >&2; exit 1; }
 done
+# gh verifies the tag on GitHub (--verify-tag): it must be pushed, with the commit it names.
+git ls-remote --tags origin "refs/tags/$tag" | grep -q . \
+    || { echo "release: $tag is not on origin yet: git push origin main $tag (the maintainer's), then again" >&2; exit 1; }
 notes=$(mktemp)
 {
     echo "$name $version, built by EmiBSD DevTools from the tag \`$tag\`."
