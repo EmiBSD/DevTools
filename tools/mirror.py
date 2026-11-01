@@ -3,7 +3,7 @@
 exist on the mirror (`repo`) and resolve to the same hash on the origin (`origin`).
 
 usage: mirror.py check [<toolchain dir>...]    ls-remote both sides, compare (no clone)
-       mirror.py sync <toolchain dir>          print the commands that push the pinned tag
+       mirror.py sync <toolchain dir>          print the commands that push the pinned tag (the user's, main session)
                                                from the origin to the mirror; never runs them
 
 Forks are mirrors: no commit of ours lands on them, only the upstream tags and commits the
@@ -89,12 +89,22 @@ def cmd_sync(args):
     if len(args) != 1:
         print(__doc__, file=sys.stderr)
         return 2
+    # The pin's history is fetched under a local ref, then the mirror's refs: with both in
+    # place git pushes only what the mirror lacks. Pushed from FETCH_HEAD alone, with none
+    # of the mirror's refs local, git sends the whole history (LLVM: millions of objects)
+    # and GitHub rejects the pack. The refs are deleted after, and gc returns the space.
+    print("# Run from this checkout; nothing of it changes but .git, cleaned at the end.")
     for d, doc in tomls(args):
         for name, mirror, origin, tag, commit in entries(doc):
             ref = f"refs/tags/{tag}" if tag else commit
+            dest = f"refs/tags/{tag}" if tag else f"refs/heads/emibsd/pin-{commit[:12]}"
+            key = f"{d.name}-{(tag or commit[:12]).replace('/', '-')}"
             print(f"# {d.name}: {name}")
-            print(f"git fetch {origin} {ref}")
-            print(f"git push {mirror} {'FETCH_HEAD:' + ref if tag else 'FETCH_HEAD:refs/heads/emibsd/pin-' + commit[:12]}")
+            print(f"git fetch {origin} +{ref}:refs/sync/{key}/pin")
+            print(f"git fetch {mirror} '+refs/heads/*:refs/sync/{key}/mirror/heads/*' '+refs/tags/*:refs/sync/{key}/mirror/tags/*'")
+            print(f"git push {mirror} refs/sync/{key}/pin:{dest}")
+            print(f"git for-each-ref --format='%(refname)' refs/sync/{key} | xargs -n1 git update-ref -d")
+    print("git gc --prune=now --quiet")
     return 0
 
 
