@@ -90,7 +90,11 @@ Installing any of them is the user's.
    unpacks; nothing is fetched as "latest". Signed with signify when the userland ships it.
 4. **T4.** The same `x.py` on EmiBSD, stage0 the T3 artifact for `aarch64-emibsd-emibsd8.0`.
    From then on each release builds from the previous one; the first cross-built one is the
-   root of trust and is recorded here with its hash.
+   root of trust and is recorded here with its hash. Noted for T4 (the maintainer,
+   2026-10-31): `rust.strip = true`, which upstream's own releases use and ours do not yet;
+   `librustc_driver` is 153 MB against rustup's 80 MB for the same version, the difference
+   being symbols; it changes the compiler's binary, not what it emits, and goes in with T4's
+   build rather than into a release the kernel is about to adopt.
 
 ## Versions
 

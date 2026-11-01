@@ -57,6 +57,11 @@ The plan of T2 (the maintainer, 2026-10-31, D-0006), in three slices:
 | `target.aarch64-unknown-none-softfloat.cc`, `.ar` | `llvm/`'s clang and llvm-ar | the C sources of `compiler_builtins` for the kernel's target |
 | `target.aarch64-emibsd-emibsd.cc`, `.cxx`, `.linker`, `.ar`, `.ranlib`, `.rustflags = -C link-arg=--sysroot=$EMIBSD_SYSROOT`; `CFLAGS_aarch64_emibsd_emibsd=--sysroot=$EMIBSD_SYSROOT` | `llvm/`'s clang, clang++, llvm-ar, llvm-ranlib | the system's target is compiled and linked by the system's own toolchain (T1) against the sysroot; a Rust program for it is linked with `-C linker=<that clang> -C link-arg=--sysroot=...` |
 
+Kept for T4, by the maintainer's note of 2026-10-31: `rust.strip = true` (upstream's
+releases strip `librustc_driver`'s symbols; ours is 153 MB against rustup's 80 MB for 1.99.1,
+the rest of the artifact matching rustup's piece by piece). Not a change to what rustc emits;
+left out of the release the kernel adopts so that its switch compares one thing.
+
 ## Licences of the vendored crates (docs/POLICIES.md)
 
 `tools/crates.py` (`just crates rust`, part of `just check`) reads every crate of
