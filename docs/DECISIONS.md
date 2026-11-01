@@ -275,12 +275,15 @@ machine, not of any repository's internals; this record is DevTools' own copy of
 (D-0005).
 
 ## Decision
-The maintainer, 2026-10-31, "dale": `just build <name>` runs `build/build.sh` under an
-advisory lock on `/tmp/emibsd/ci.lock` (`tools/lock.py`: `flock(2)` on the file, exclusive,
-blocking; it says when it waits and for how long it waited). Nothing else of DevTools takes
-it: `just dist`, the checks and the fetches are light. The mechanism is `flock(2)` on that
-path; a holder that locks the same path another way (a `mkdir`, a pid file) is not excluded,
-and the kernel repository is told which mechanism this is.
+The maintainer, 2026-10-31, "dale": `just build <name>` runs `build/build.sh` under the lock
+`/tmp/emibsd/ci.lock` (`tools/lock.py`; it says when it waits and for how long it waited).
+Nothing else of DevTools takes it: `just dist`, the checks and the fetches are light. The
+mechanism is the kernel repository's, learned the same day when the two met: the lock is a
+**directory** made with `mkdir(2)`, atomic, held while it exists and removed by its holder.
+DevTools' first version used `flock(2)` on a file of that name, which left a file in the way
+of the kernel's `mkdir`; replaced the same day. A `pid` file inside names a DevTools holder,
+and a directory whose DevTools holder is dead is taken over; another repository's holder is
+never judged.
 
 ## Consequences
 - `justfile`'s `build` recipe runs through `tools/lock.py`; `COMP_JOBS` keeps bounding the
