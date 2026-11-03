@@ -44,7 +44,7 @@ notes=$(mktemp)
 {
     echo "$name $version, built by EmiBSD DevTools from the tag \`$tag\`."
     echo
-    echo "One tarball per host; fetch by this tag, check the sum, then unpack:"
+    echo "One tarball per host and target architecture (arm64, amd64); fetch by this tag, check the sum, then unpack:"
     echo
     echo '```'
     cat dist/"$name-$version"-*.tar.zst.sha256

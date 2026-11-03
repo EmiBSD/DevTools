@@ -13,23 +13,25 @@
 # WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
 # ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 # OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
-"""The artifact of a built toolchain: dist/<name>-<version>-<host>.tar.zst and its .sha256.
+"""The artifacts of a built toolchain: dist/<name>-<version>-<host>-<arch>.tar.zst and their .sha256,
+one per target architecture (arm64, amd64: D-0008).
 
-usage: dist.py <llvm|rust>        pack the install tree, then unpack it elsewhere and run tests/check.sh
+usage: dist.py <llvm|rust>        pack the install tree once per architecture, then unpack each
+                                  elsewhere and run tests/check.sh over it
 
-The tarball holds one directory, <name>-<version>-<host>/, with the install tree as
-build/build.sh left it, plus MANIFEST (the commit, the tag if HEAD carries one, the pins, the
+Each tarball holds one directory, <name>-<version>-<host>-<arch>/, with the install tree as
+build/build.sh left it, less what belongs to the other architecture's targets (their runtimes,
+their std, the clang named after their triple), plus MANIFEST (the commit, the tag if HEAD carries one, the pins, the
 patch series with its sums) and share/doc/emibsd/ (DevTools' ISC LICENSE, the patches, the
 upstream licence texts). Reproducible: entries sorted, mtime SOURCE_DATE_EPOCH (the commit's
 time), uid and gid 0, modes normalised; two builds of the same tag compare. `zstd` is the
-host's (the user's install). Needs EMIBSD_SYSROOT for the check, as the build does.
+host's (the user's install). Needs EMIBSD_SYSROOT_ARM64 and _AMD64 for the check, as the build does.
 A release is cut from a tagged commit; without a tag MANIFEST says `tag: none (snapshot)`.
 """
 import hashlib
 import io
 import os
 import platform
-import re
 import shutil
 import subprocess
 import sys
@@ -41,6 +43,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 HOSTS = {("Darwin", "arm64"): "aarch64-apple-darwin", ("Linux", "x86_64"): "x86_64-unknown-linux-gnu",
          ("EmiBSD", "arm64"): "aarch64-emibsd-emibsd8.0"}
+ARCHS = {"arm64": "aarch64", "amd64": "x86_64"}  # the system's names of the target architectures, and LLVM's
 LICENSES = {  # upstream licence texts to ship beside ours, relative to the source copy
     "llvm": [("llvm/LICENSE.TXT", "LICENSE.llvm"), ("libcxx/LICENSE.TXT", "LICENSE.libcxx"),
              ("compiler-rt/LICENSE.TXT", "LICENSE.compiler-rt")],
@@ -58,12 +61,32 @@ def install_tree(name, host):
     return ROOT / "target" / "rust" / f"install-{host}"
 
 
-def manifest(name, toml, version, host, epoch):
+def target_arch(part):
+    """The LLVM architecture a path component belongs to, when it names an EmiBSD or kernel target
+    (lib/x86_64-emibsd-emibsd8.0, lib/rustlib/aarch64-emibsd-none-softfloat, bin/x86_64-...-clang,
+    manifest-rust-std-x86_64-emibsd-emibsd); None for what every architecture shares, the host's too."""
+    part = part.removeprefix("manifest-rust-std-")
+    if "-emibsd" not in part:
+        return None
+    return part.split("-", 1)[0]
+
+
+def targets_of(tree, arch):
+    """The targets this architecture's tarball carries, as the tree names them."""
+    found = set()
+    for d in (tree / "lib", tree / "lib" / "rustlib"):
+        if d.is_dir():
+            found |= {p.name for p in d.iterdir() if p.is_dir() and target_arch(p.name) == ARCHS[arch]}
+    return sorted(found)
+
+
+def manifest(name, toml, version, host, arch, targets, epoch):
     up = toml["upstream"]
     # The tag of this toolchain among those on HEAD (llvm's and rust's may share a commit).
     tags = [t for t in run("git", "tag", "--points-at", "HEAD", cwd=ROOT).splitlines() if t.startswith(f"{name}-")]
     tag = tags[0] if tags else "none (snapshot)"
-    lines = [f"name: {name}", f"version: {version}", f"host: {host}",
+    lines = [f"name: {name}", f"version: {version}", f"host: {host}", f"arch: {arch}",
+             f"targets: {' '.join(targets)}",
              f"commit: {run('git', 'rev-parse', 'HEAD', cwd=ROOT)}", f"tag: {tag}",
              f"date: {datetime.fromtimestamp(epoch, timezone.utc).isoformat()}",
              f"upstream: {up['origin']} {up.get('tag') or up.get('commit')} ({up['commit']}) via {up['repo']}"]
@@ -84,10 +107,18 @@ def add_bytes(tar, arcname, data, epoch, mode=0o644):
     tar.addfile(info, io.BytesIO(data))
 
 
-def add_tree(tar, top, src: Path, epoch):
-    """Every entry under src, sorted, normalised: mtime epoch, uid/gid 0, mode 755 or 644."""
+def add_tree(tar, top, src: Path, arch, epoch):
+    """Every entry under src but the other architectures' targets, sorted, normalised: mtime epoch,
+    uid/gid 0, mode 755 or 644. rust-installer's list of components names this architecture's only."""
     for path in sorted(src.rglob("*"), key=lambda p: str(p.relative_to(src))):
-        arcname = f"{top}/{path.relative_to(src)}"
+        rel = path.relative_to(src)
+        if any(target_arch(part) not in (None, ARCHS[arch]) for part in rel.parts):
+            continue
+        arcname = f"{top}/{rel}"
+        if rel == Path("lib/rustlib/components"):
+            kept = [c for c in path.read_text().splitlines() if target_arch(c.removeprefix("rust-std-")) in (None, ARCHS[arch])]
+            add_bytes(tar, arcname, ("\n".join(kept) + "\n").encode(), epoch)
+            continue
         info = tar.gettarinfo(str(path), arcname)
         info.mtime = epoch; info.uid = info.gid = 0; info.uname = info.gname = ""
         if info.isdir():
@@ -103,10 +134,11 @@ def add_tree(tar, top, src: Path, epoch):
             tar.addfile(info)
 
 
-def pack(name):
-    if not os.environ.get("EMIBSD_SYSROOT"):
-        raise SystemExit("dist: set EMIBSD_SYSROOT (the target libc, crt and headers): the unpacked check "
-                         "links programs against it, as the build does; nothing is packed without it")
+def pack(name, arch):
+    for var in ("EMIBSD_SYSROOT_ARM64", "EMIBSD_SYSROOT_AMD64"):
+        if not os.environ.get(var):
+            raise SystemExit(f"dist: set {var} (that architecture's libc, crt and headers): the unpacked check "
+                             "links programs against it, as the build does; nothing is packed without it")
     toml = tomllib.load(open(ROOT / name / "UPSTREAM.toml", "rb"))
     version = toml["upstream"]["version"]
     host = HOSTS.get((platform.system(), platform.machine()))
@@ -116,7 +148,7 @@ def pack(name):
     if not (tree / "bin").is_dir():
         raise SystemExit(f"dist: {tree.relative_to(ROOT)} is not built (just build {name})")
     epoch = int(os.environ.get("SOURCE_DATE_EPOCH") or run("git", "log", "-1", "--format=%ct", cwd=ROOT))
-    top = f"{name}-{version}-{host}"
+    top = f"{name}-{version}-{host}-{arch}"
     out = ROOT / "dist"
     out.mkdir(exist_ok=True)
     tarball = out / f"{top}.tar.zst"
@@ -125,8 +157,8 @@ def pack(name):
     print(f"dist: {top}: packing {tree.relative_to(ROOT)} (SOURCE_DATE_EPOCH {epoch})")
     zstd = subprocess.Popen(["zstd", "-19", "-T0", "-q", "-f", "-o", str(tarball)], stdin=subprocess.PIPE)
     with tarfile.open(fileobj=zstd.stdin, mode="w|", format=tarfile.PAX_FORMAT) as tar:
-        add_tree(tar, top, tree, epoch)
-        add_bytes(tar, f"{top}/MANIFEST", manifest(name, toml, version, host, epoch).encode(), epoch)
+        add_tree(tar, top, tree, arch, epoch)
+        add_bytes(tar, f"{top}/MANIFEST", manifest(name, toml, version, host, arch, targets_of(tree, arch), epoch).encode(), epoch)
         add_bytes(tar, f"{top}/share/doc/emibsd/LICENSE", (ROOT / "LICENSE").read_bytes(), epoch)
         for p in toml.get("patches", {}).get("series", []):
             add_bytes(tar, f"{top}/share/doc/emibsd/patches/{p}", (ROOT / name / "patches" / p).read_bytes(), epoch)
@@ -148,7 +180,7 @@ def seal(tarball):
     print(f"dist: {tarball.name}.sha256: {digest}")
 
 
-def check(name, top, tarball):
+def check(name, arch, top, tarball):
     """Unpack elsewhere and run tests/check.sh there: the artifact works away from target/."""
     where = ROOT / "target" / "dist-check"
     shutil.rmtree(where, ignore_errors=True)
@@ -156,14 +188,10 @@ def check(name, top, tarball):
     subprocess.run(f"zstd -dc '{tarball}' | tar -xf - -C '{where}'", shell=True, check=True)
     prefix = where / top
     if name == "llvm":
-        triple = run(str(prefix / "bin" / "clang"), "-print-target-triple")
-        args = [str(prefix), triple]
+        args = [str(prefix), ARCHS[arch]]
     else:
         host = run(str(prefix / "bin" / "rustc"), "-vV").split("host: ")[1].splitlines()[0]
-        build_sh = (ROOT / "rust" / "build" / "build.sh").read_text()
-        kernel = re.search(r"^KERNEL_TARGET=(\S+)", build_sh, re.M).group(1)
-        target = re.search(r"^TARGET=(\S+)", build_sh, re.M).group(1)
-        args = [str(prefix), host, kernel, target, str(install_tree("llvm", host))]
+        args = [str(prefix), host, str(install_tree("llvm", host)), ARCHS[arch]]
     print(f"dist: check.sh over the unpacked {top}")
     subprocess.run(["sh", str(ROOT / name / "tests" / "check.sh"), *args], check=True)
 
@@ -171,10 +199,11 @@ def check(name, top, tarball):
 def main(argv):
     if len(argv) != 1 or argv[0] not in ("llvm", "rust"):
         print(__doc__); return 2
-    top, tarball = pack(argv[0])
-    (tarball.parent / f"{tarball.name}.sha256").unlink(missing_ok=True)
-    check(argv[0], top, tarball)
-    seal(tarball)
+    for arch in ARCHS:
+        top, tarball = pack(argv[0], arch)
+        (tarball.parent / f"{tarball.name}.sha256").unlink(missing_ok=True)
+        check(argv[0], arch, top, tarball)
+        seal(tarball)
     return 0
 
 
