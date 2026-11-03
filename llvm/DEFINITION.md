@@ -15,15 +15,17 @@ against (`rust/`).
 ## What we build of it
 
 Projects `clang` and `lld`; runtimes `compiler-rt`, `libunwind`, `libcxxabi`, `libcxx`;
-backend `AArch64` (and `X86`, for amd64 when it returns, D-0001). Not built: lldb (open in
+backends `AArch64` and `X86` (arm64 and amd64, D-0008). Not built: lldb (open in
 D-0002), the
 other backends, the tests, the documentation.
 
 ## Constraints
 
-Stage 1 runs on the host and emits for `aarch64-emibsd-emibsd8.0` (D-0004); stage 2
-cross-compiles the runtimes against the sysroot it is given (`EMIBSD_SYSROOT`: libc, crt,
-headers). The build refuses to run without a sysroot rather than guess one.
+Stage 1 runs on the host and emits for `aarch64-emibsd-emibsd8.0` by default and for
+`x86_64-emibsd-emibsd8.0` (D-0004, D-0008); stage 2 cross-compiles the runtimes for each,
+against the sysroot it is given for that architecture (`EMIBSD_SYSROOT_ARM64`,
+`EMIBSD_SYSROOT_AMD64`: libc, crt, headers). The build refuses to run without both sysroots
+rather than guess one.
 
 ## Compatibility
 

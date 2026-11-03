@@ -1,8 +1,8 @@
 llvm: EmiBSD as vendor and operating system in the target triple
 
 Why a patch: LLVM knows nothing of EmiBSD, and DevTools' toolchains emit for
-aarch64-emibsd-emibsd8.0 (x86_64 when amd64 returns; the OS version is the release
-the ABI belongs to, set by the build glue, not by this patch): the vendor is
+aarch64-emibsd-emibsd8.0 and x86_64-emibsd-emibsd8.0 (D-0008; the OS version is the
+release the ABI belongs to, set by the build glue, not by this patch): the vendor is
 EmiBSD, the project (emibsd.org), and so is the operating system. This adds the
 vendor (`emibsd`, Triple::EmiBSDVendor: the enumerators of VendorType and
 OSType share Triple's scope, as Mesa and Mesa3D do) and the OS (`emibsd`,

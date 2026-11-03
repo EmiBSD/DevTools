@@ -12,21 +12,23 @@
    with `LLVM_ENABLE_PROJECTS=clang;lld`, `LLVM_TARGETS_TO_BUILD=AArch64;X86`,
    `LLVM_DEFAULT_TARGET_TRIPLE=aarch64-emibsd-emibsd8.0`, `CMAKE_BUILD_TYPE=Release`,
    `LLVM_ENABLE_ASSERTIONS=OFF`; the distribution (`LLVM_DISTRIBUTION_COMPONENTS`, below)
-   installed into `target/llvm/<host>/` with `install-distribution`. The build tree
+   installed into `target/llvm/<host>/` with `install-distribution`, with clang's links
+   `<triple>-clang` and `<triple>-clang++` for each target (below). The build tree
    `target/llvm/host/` keeps everything LLVM builds; rustc's `llvm-config` points there.
-2. **Stage 2, the target runtimes**, in the two passes upstream's own runtimes bootstrap
+2. **Stage 2, the target runtimes**, once per target triple (arm64's, then amd64's: D-0008),
+   in the two passes upstream's own runtimes bootstrap
    makes (`llvm/runtimes/CMakeLists.txt`), because CMake's compiler test links, and the link
    needs the builtins that this stage produces. **2a**: `cmake -S
-   target/llvm/src/compiler-rt/lib/builtins -B target/llvm/builtins`, the stage-1 clang as
+   target/llvm/src/compiler-rt/lib/builtins -B target/llvm/builtins-<triple>`, the stage-1 clang as
    the compiler, `CMAKE_SYSTEM_NAME=EmiBSD` (CMake learns the system from
-   `build/cmake/Platform/EmiBSD.cmake`), `CMAKE_SYSROOT=$EMIBSD_SYSROOT`, the triple
-   `aarch64-emibsd-emibsd8.0`, `CMAKE_{C,CXX,ASM}_COMPILER_WORKS=ON` as upstream passes them,
+   `build/cmake/Platform/EmiBSD.cmake`), `CMAKE_SYSROOT` the architecture's sysroot
+   (`EMIBSD_SYSROOT_ARM64`, `EMIBSD_SYSROOT_AMD64`), the triple, `CMAKE_{C,CXX,ASM}_COMPILER_WORKS=ON` as upstream passes them,
    `COMPILER_RT_DEFAULT_TARGET_ONLY=ON`; installed into the stage-1 tree under
-   `lib/clang/23/lib/aarch64-emibsd-emibsd8.0/`. **2b**: `cmake -S target/llvm/src/runtimes -B
-   target/llvm/runtimes` with `LLVM_ENABLE_RUNTIMES=libunwind;libcxxabi;libcxx`, the same
+   `lib/clang/23/lib/<triple>/`. **2b**: `cmake -S target/llvm/src/runtimes -B
+   target/llvm/runtimes-<triple>` with `LLVM_ENABLE_RUNTIMES=libunwind;libcxxabi;libcxx`, the same
    compiler, system, sysroot and triple, static libraries only, `LIBCXX_USE_COMPILER_RT=ON`,
-   `LIBCXXABI_USE_LLVM_UNWINDER=ON`; installed under `lib/aarch64-emibsd-emibsd8.0/` and
-   `include/aarch64-emibsd-emibsd8.0/` (`LLVM_ENABLE_PER_TARGET_RUNTIME_DIR`), where the driver
+   `LIBCXXABI_USE_LLVM_UNWINDER=ON`; installed under `lib/<triple>/` and
+   `include/<triple>/` (`LLVM_ENABLE_PER_TARGET_RUNTIME_DIR`), where the driver
    looks for them. No sanitizer, xray, fuzzer or profile runtime: only the builtins of
    compiler-rt are built.
 3. **`tests/check.sh`** over the install tree: the compiler's identity and macros, the
@@ -43,11 +45,12 @@ Flags that differ from upstream's defaults, with the reason:
 | Flag | Value | Why |
 |---|---|---|
 | `LLVM_ENABLE_ZSTD` | `OFF` | CMake found Homebrew's zstd and the tools loaded `/opt/homebrew/opt/zstd/lib/libzstd.1.dylib`, which no other Mac has, and rustc's link asked for `-lzstd` with no path; the host tools link only the SDK's libraries (zlib, libxml2, libedit); `tests/check.sh` refuses anything under `/opt/homebrew` |
-| `LLVM_DEFAULT_TARGET_TRIPLE` | `aarch64-emibsd-emibsd8.0` | the system's clang emits for the system by default (D-0004); the OS version is the EmiBSD release the ABI belongs to, `EMIBSD_OS_VERSION` in `build.sh`, bumped by the maintainer; the per-target runtime directories carry it |
+| `LLVM_DEFAULT_TARGET_TRIPLE` | `aarch64-emibsd-emibsd8.0` | the system's clang emits for the system by default (D-0004), arm64 first (D-0008); the OS version is the EmiBSD release the ABI belongs to, `EMIBSD_OS_VERSION` in `build.sh`, bumped by the maintainer; the per-target runtime directories carry it |
+| `CLANG_LINKS_TO_CREATE` | upstream's `clang++;clang-cl;clang-cpp`, plus `<triple>-clang` and `<triple>-clang++` for `aarch64-emibsd-emibsd8.0` and `x86_64-emibsd-emibsd8.0` | clang takes its target from a triple prefixed to its name; rustc passes no `--target` to a cc linker, so a Rust program for x86_64 links through `x86_64-emibsd-emibsd8.0-clang` (D-0008); installed with the `clang` component |
 | `CMAKE_SYSTEM_NAME` (stage 2) | `EmiBSD`, with `build/cmake/Platform/EmiBSD.cmake` | CMake must name the system the runtimes are cross-compiled for; it knows no EmiBSD, so DevTools describes it (an ELF Unix without libdl) |
 | `LLVM_ENABLE_PER_TARGET_RUNTIME_DIR` (stage 2) | `ON` | the runtimes land in `lib/<triple>/`, where clang's driver looks for a cross target |
 | `LIBCXX_ENABLE_SHARED`, `LIBCXXABI_ENABLE_SHARED`, `LIBUNWIND_ENABLE_SHARED` | `OFF` | the system links its C++ statically for now; shared runtimes are a decision for when the userland ships them |
-| `LLVM_TARGETS_TO_BUILD` | `AArch64;X86` | arm64 now, amd64 when it returns (decision D-0001); nothing else |
+| `LLVM_TARGETS_TO_BUILD` | `AArch64;X86` | arm64 and amd64 (decision D-0008); nothing else |
 | `COMPILER_RT_BUILD_*` | sanitizers, xray, fuzzer, profile off | only the builtins and the runtimes the system links |
 | `LLVM_ENABLE_ASSERTIONS` | `OFF` | a release compiler; assertions are for developing LLVM |
 | `LLVM_DISTRIBUTION_COMPONENTS` | clang and its resource headers, lld, `llvm-ar`, `llvm-ranlib`, `llvm-nm`, `llvm-objcopy`, `llvm-strip`, `llvm-objdump`, `llvm-readobj`, `llvm-readelf`, `llvm-size`, `llvm-strings`, `llvm-symbolizer`, `llvm-addr2line`, `llvm-cxxfilt`, `llvm-dwarfdump`, `llvm-cov`, `llvm-profdata` (`DISTRIBUTION` in `build.sh`) | a plain `install` is LLVM's development kit: 131 programs (`llc`, `opt`, `clang-repl`, the GPU wrappers, `bugpoint`...), the LLVM and clang static libraries and headers, 2.2 GB, each tool linked statically against LLVM as upstream links them; `LLVM_DISTRIBUTION_COMPONENTS` is the mechanism upstream gives a system that ships LLVM (its `clang/cmake/caches/` are examples), and the list is what a system build uses: the compiler, the linker and the binutils, about 300 MB, the same binaries linked the same way; nothing is built differently. rustc's build reads the build tree. The tools stay statically linked against LLVM: a toolchain that depends on a shared `libLLVM` breaks with it |
@@ -76,7 +79,7 @@ decision of this repository (D-0004) and reversible here:
 |---|---|---|
 | `-fpie`, PIE executables, `rcrt0.o` with `-static` | aarch64, x86_64 | the kernel loads PIE and randomises its base; a static executable relocates itself |
 | `-mbranch-target-enforce`, `-msign-return-address=non-leaf` | aarch64 | the kernel enforces branch-target identification on user pages; the system's libraries are built with return-address signing |
-| `-fcf-protection=branch`, `-fno-jump-tables` | x86_64 (when amd64 returns) | indirect-branch tracking, as the system's libraries expect |
+| `-fcf-protection=branch`, `-fno-jump-tables` | x86_64 | indirect-branch tracking, as the system's libraries expect; jump tables would jump indirectly to labels with no `endbr64`; upstream's OpenBSD branch of the driver, which patch 0003 lets EmiBSD into (D-0008) |
 | `-fstack-protector-strong` | all | the libc provides the guard and the handler; on by default as in the system |
 | `-funwind-tables` (asynchronous) | all | libunwind unwinds through C frames (exceptions, backtraces) |
 | `-fuse-ld=lld` | all | the one linker of the toolchain |
