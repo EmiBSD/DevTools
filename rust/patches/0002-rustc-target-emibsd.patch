@@ -1,22 +1,33 @@
-rustc: the target aarch64-emibsd-emibsd
+rustc: the EmiBSD targets, of the system and of the kernel
 
-Why a patch: rustc knows nothing of EmiBSD, and DevTools' rustc emits for
-aarch64-emibsd-emibsd (D-0004): the OS `emibsd` in rustc_target's Os enum,
-a base `spec/base/emibsd.rs` stating what the ABI asks of the target, which
-is the ABI its kernel and libc present (a dynamic system of PIE executables,
-emulated TLS because its run-time link-editor has no ELF TLS, full RELRO,
-frame pointers kept, structs returned as integers, +crt-static honoured as a
-static PIE), the vendor `emibsd`, and
-the target `aarch64-emibsd-emibsd` whose LLVM triple carries the release the
-ABI belongs to, aarch64-emibsd-emibsd8.0 (the name of the target does not,
-as x86_64-unknown-freebsd does not); rustdoc names the OS "EmiBSD" in
-the documentation's cfg notes. Tier 3 by upstream's rules. Written by
-EmiBSD (ISC); carried by DevTools over the pinned tag, offered upstream when
-stable. Author: Emilio Navarrete Lineros, 2026-10-31.
+Why a patch: rustc knows nothing of EmiBSD. DevTools' rustc emits for the
+system's targets aarch64-emibsd-emibsd and x86_64-emibsd-emibsd (D-0004,
+D-0008) and for the kernel's aarch64-emibsd-none-softfloat and
+x86_64-emibsd-none-softfloat (D-0008). For the system: the OS `emibsd` in
+rustc_target's Os enum, a base `spec/base/emibsd.rs` stating what the ABI
+asks of the target, which is the ABI its kernel and libc present (a
+dynamic system of PIE executables, emulated TLS because its run-time
+link-editor has no ELF TLS, full RELRO, frame pointers kept, structs
+returned as integers, +crt-static honoured as a static PIE, the link
+closed by the driver as for C, with compiler-rt's builtins around -lc,
+which the libc's static archive relies on), the vendor
+`emibsd`, and the two targets, whose LLVM triples carry the release the
+ABI belongs to, aarch64-emibsd-emibsd8.0 and x86_64-emibsd-emibsd8.0
+(the names of the targets do not, as x86_64-unknown-freebsd does not);
+the x86_64 one takes the architecture's options as the other BSDs'
+x86_64 targets do. For the kernel: upstream's bare-metal targets
+aarch64-unknown-none-softfloat and x86_64-unknown-none with the vendor
+`emibsd` and nothing else changed, so they emit the same code (LLVM keys
+nothing on the vendor); both named -softfloat, which upstream's x86_64
+one is without saying it. rustdoc names the OS "EmiBSD" in the
+documentation's cfg notes. Tier 3 by upstream's rules. Written by EmiBSD
+(ISC); carried by DevTools over the pinned tag, offered upstream when
+stable. Author: Emilio Navarrete Lineros, 2026-10-31; amd64 and the
+kernel's targets, 2026-11-02.
 
 --- /dev/null
 +++ b/compiler/rustc_target/src/spec/base/emibsd.rs
-@@ -0,0 +1,25 @@
+@@ -0,0 +1,28 @@
 +use crate::spec::{FramePointer, Os, RelroLevel, TargetOptions, TlsModel, cvs};
 +
 +/// EmiBSD: the ABI its kernel and libc present, which is OpenBSD's (D-0003 of DevTools:
@@ -39,6 +50,9 @@ stable. Author: Emilio Navarrete Lineros, 2026-10-31.
 +        relro_level: RelroLevel::Full,
 +        default_dwarf_version: 2,
 +        tls_model: TlsModel::Emulated,
++        // The driver closes the link as for C: compiler-rt's builtins around -lc, which the
++        // libc's static archive relies on (its amd64 assembly reads __cpu_features2 from them).
++        no_default_libraries: false,
 +        ..Default::default()
 +    }
 +}
@@ -54,7 +68,7 @@ stable. Author: Emilio Navarrete Lineros, 2026-10-31.
  pub(crate) mod haiku;
 --- a/compiler/rustc_target/src/spec/mod.rs
 +++ b/compiler/rustc_target/src/spec/mod.rs
-@@ -1524,6 +1524,7 @@
+@@ -1525,12 +1525,14 @@
  
      ("x86_64-unknown-dragonfly", x86_64_unknown_dragonfly),
  
@@ -62,7 +76,30 @@ stable. Author: Emilio Navarrete Lineros, 2026-10-31.
      ("aarch64-unknown-openbsd", aarch64_unknown_openbsd),
      ("i686-unknown-openbsd", i686_unknown_openbsd),
      ("powerpc-unknown-openbsd", powerpc_unknown_openbsd),
-@@ -1978,6 +1979,7 @@
+     ("powerpc64-unknown-openbsd", powerpc64_unknown_openbsd),
+     ("riscv64gc-unknown-openbsd", riscv64gc_unknown_openbsd),
+     ("sparc64-unknown-openbsd", sparc64_unknown_openbsd),
++    ("x86_64-emibsd-emibsd", x86_64_emibsd_emibsd),
+     ("x86_64-unknown-openbsd", x86_64_unknown_openbsd),
+ 
+     ("aarch64-unknown-netbsd", aarch64_unknown_netbsd),
+@@ -1719,6 +1721,7 @@
+ 
+     ("aarch64-unknown-none", aarch64_unknown_none),
+     ("aarch64-unknown-none-softfloat", aarch64_unknown_none_softfloat),
++    ("aarch64-emibsd-none-softfloat", aarch64_emibsd_none_softfloat),
+     ("aarch64_be-unknown-none-softfloat", aarch64_be_unknown_none_softfloat),
+     ("aarch64-unknown-nuttx", aarch64_unknown_nuttx),
+     ("aarch64v8r-unknown-none", aarch64v8r_unknown_none),
+@@ -1786,6 +1789,7 @@
+     ("armv7-unknown-linux-uclibceabihf", armv7_unknown_linux_uclibceabihf),
+ 
+     ("x86_64-unknown-none", x86_64_unknown_none),
++    ("x86_64-emibsd-none-softfloat", x86_64_emibsd_none_softfloat),
+ 
+     ("aarch64-unknown-teeos", aarch64_unknown_teeos),
+ 
+@@ -1980,6 +1984,7 @@
          Cuda = "cuda",
          Cygwin = "cygwin",
          Dragonfly = "dragonfly",
@@ -94,6 +131,137 @@ stable. Author: Emilio Navarrete Lineros, 2026-10-31.
 +            stack_probes: StackProbeType::Inline,
 +            ..base::emibsd::opts()
 +        },
++    }
++}
+--- /dev/null
++++ b/compiler/rustc_target/src/spec/targets/aarch64_emibsd_none_softfloat.rs
+@@ -0,0 +1,48 @@
++// EmiBSD's kernel on AArch64: upstream's aarch64-unknown-none-softfloat with the vendor emibsd.
++// Bare-metal code, floating point disabled
++//
++// Can be used in conjunction with the `target-feature` and
++// `target-cpu` compiler flags to opt-in more hardware-specific
++// features.
++//
++// For example, `-C target-cpu=cortex-a53`.
++
++use crate::spec::{
++    Arch, Cc, CfgAbi, LinkerFlavor, Lld, PanicStrategy, RelocModel, RustcAbi, SanitizerSet,
++    StackProbeType, Target, TargetMetadata, TargetOptions,
++};
++
++pub(crate) fn target() -> Target {
++    let opts = TargetOptions {
++        vendor: "emibsd".into(),
++        cfg_abi: CfgAbi::SoftFloat,
++        rustc_abi: Some(RustcAbi::Softfloat),
++        linker_flavor: LinkerFlavor::Gnu(Cc::No, Lld::Yes),
++        linker: Some("rust-lld".into()),
++        features: "+v8a,+strict-align,-neon".into(),
++        relocation_model: RelocModel::Static,
++        disable_redzone: true,
++        max_atomic_width: Some(128),
++        supported_sanitizers: SanitizerSet::KCFI
++            | SanitizerSet::KERNELADDRESS
++            | SanitizerSet::KERNELHWADDRESS,
++        stack_probes: StackProbeType::Inline,
++        panic_strategy: PanicStrategy::Abort,
++        default_uwtable: true,
++        supports_xray: true,
++        ..Default::default()
++    };
++    Target {
++        llvm_target: "aarch64-emibsd-none".into(),
++        metadata: TargetMetadata {
++            description: Some("Bare ARM64, softfloat, EmiBSD's kernel".into()),
++            tier: Some(3),
++            host_tools: Some(false),
++            std: Some(false),
++        },
++        pointer_width: 64,
++        data_layout: "e-m:e-p270:32:32-p271:32:32-p272:64:64-i8:8:32-i16:16:32-i64:64-i128:128-n32:64-S128-Fn32".into(),
++        arch: Arch::AArch64,
++        options: opts,
++    }
++}
+--- /dev/null
++++ b/compiler/rustc_target/src/spec/targets/x86_64_emibsd_emibsd.rs
+@@ -0,0 +1,26 @@
++use crate::spec::{Arch, Cc, LinkerFlavor, Lld, StackProbeType, Target, TargetMetadata, base};
++
++pub(crate) fn target() -> Target {
++    let mut base = base::emibsd::opts();
++    base.cpu = "x86-64".into();
++    base.plt_by_default = false;
++    base.max_atomic_width = Some(64);
++    base.add_pre_link_args(LinkerFlavor::Gnu(Cc::Yes, Lld::No), &["-m64"]);
++    base.stack_probes = StackProbeType::Inline;
++
++    Target {
++        // The LLVM triple carries the EmiBSD release the ABI belongs to; the target's name does not.
++        llvm_target: "x86_64-emibsd-emibsd8.0".into(),
++        metadata: TargetMetadata {
++            description: Some("64-bit x86 EmiBSD 8.0".into()),
++            tier: Some(3),
++            host_tools: Some(true),
++            std: Some(true),
++        },
++        pointer_width: 64,
++        data_layout:
++            "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128".into(),
++        arch: Arch::X86_64,
++        options: base,
++    }
++}
+--- /dev/null
++++ b/compiler/rustc_target/src/spec/targets/x86_64_emibsd_none_softfloat.rs
+@@ -0,0 +1,48 @@
++// EmiBSD's kernel on x86-64: upstream's x86_64-unknown-none with the vendor emibsd, named
++// -softfloat as the AArch64 one is (upstream's x86_64 bare-metal target is softfloat unnamed).
++// Bare-metal code, floating point disabled
++//
++// Can be used in conjunction with the `target-feature` and
++// `target-cpu` compiler flags to opt-in more hardware-specific
++// features.
++
++use crate::spec::{
++    Arch, Cc, CodeModel, LinkerFlavor, Lld, PanicStrategy, RelroLevel, RustcAbi, SanitizerSet,
++    StackProbeType, Target, TargetMetadata, TargetOptions,
++};
++
++pub(crate) fn target() -> Target {
++    let opts = TargetOptions {
++        vendor: "emibsd".into(),
++        cpu: "x86-64".into(),
++        plt_by_default: false,
++        max_atomic_width: Some(64),
++        stack_probes: StackProbeType::Inline,
++        position_independent_executables: true,
++        static_position_independent_executables: true,
++        relro_level: RelroLevel::Full,
++        linker_flavor: LinkerFlavor::Gnu(Cc::No, Lld::Yes),
++        linker: Some("rust-lld".into()),
++        rustc_abi: Some(RustcAbi::Softfloat),
++        features: "-mmx,-sse,-sse2,-sse3,-ssse3,-sse4.1,-sse4.2,-avx,-avx2,+soft-float".into(),
++        supported_sanitizers: SanitizerSet::KCFI | SanitizerSet::KERNELADDRESS,
++        disable_redzone: true,
++        panic_strategy: PanicStrategy::Abort,
++        code_model: Some(CodeModel::Kernel),
++        ..Default::default()
++    };
++    Target {
++        llvm_target: "x86_64-emibsd-none-elf".into(),
++        metadata: TargetMetadata {
++            description: Some("Freestanding/bare-metal x86_64 softfloat, EmiBSD's kernel".into()),
++            tier: Some(3),
++            host_tools: Some(false),
++            std: Some(false),
++        },
++        pointer_width: 64,
++        data_layout:
++            "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128".into(),
++        arch: Arch::X86_64,
++        options: opts,
 +    }
 +}
 --- a/src/librustdoc/clean/cfg.rs

@@ -11,7 +11,8 @@ The targets, libraries and tools taken from the source; what is left out and why
 
 ## Constraints
 
-The sysroot it links against (`EMIBSD_SYSROOT`: libc, crt, headers); the stage0 it
+The sysroots it links against, one per architecture (`EMIBSD_SYSROOT_ARM64`,
+`EMIBSD_SYSROOT_AMD64`: libc, crt, headers); the stage0 it
 bootstraps from; static or dynamic.
 
 ## Compatibility
@@ -38,4 +39,4 @@ what the pin bump that closes them is, and `tests/cve/` for what we patched ours
 
 ## Open questions
 
-- One LLVM (decision D-0003, 2026-10-31): rustc is built against llvm/'s upstream LLVM 23.1.4 through llvm-config (rustc 1.99.1 needs >= 21); its own src/llvm-project submodule is not fetched. Built with x.py, host first, then the target aarch64-emibsd-emibsd (D-0004; llvm-target aarch64-emibsd-emibsd8.0, its target spec a patch of ours in patches/ at T2): the std for the tier 3 target is built as part of the toolchain, from a stable release's source, without nightly. Stage0: rustup's rustc on the host; on EmiBSD, the previous build. library/backtrace needs its mirror before T2.
+- One LLVM (decision D-0003, 2026-10-31): rustc is built against llvm/'s upstream LLVM 23.1.4 through llvm-config (rustc 1.99.1 needs >= 21); its own src/llvm-project submodule is not fetched. Built with x.py, host first, then the targets aarch64-emibsd-emibsd and x86_64-emibsd-emibsd (D-0004, D-0008; llvm-target <arch>-emibsd-emibsd8.0, their target specs a patch of ours in patches/): the std for the tier 3 targets is built as part of the toolchain, from a stable release's source, without nightly. Stage0: rustup's rustc on the host; on EmiBSD, the previous build. library/backtrace needs its mirror before T2.

@@ -53,9 +53,9 @@ manifests = ["library/Cargo.toml", "library/stdarch/Cargo.toml", "src/tools/carg
 # `llvm-config` (`[target.*] llvm-config` in x.py's config.toml, `llvm.download-ci-llvm = false`),
 # as distributions build it against a system LLVM; rustc 1.99.1 requires LLVM >= 21
 # (src/bootstrap/src/core/build_steps/llvm.rs, check_llvm_version). Its own src/llvm-project
-# submodule is not pinned and not fetched. Built with x.py, host first, then the target
-# aarch64-emibsd-emibsd (D-0004; llvm-target aarch64-emibsd-emibsd8.0, its target spec a patch of ours in patches/): the std for
-# the tier 3 target is built as part of the toolchain,
+# submodule is not pinned and not fetched. Built with x.py, host first, then the targets
+# aarch64-emibsd-emibsd and x86_64-emibsd-emibsd (D-0004, D-0008; llvm-target <arch>-emibsd-emibsd8.0, their target specs a
+# patch of ours in patches/): the std for the tier 3 targets is built as part of the toolchain,
 # from a stable release's source, without nightly. Stage0: rustup's rustc on the host; on
 # EmiBSD, the previous DevTools release. library/backtrace is a submodule std needs; its
 # mirror (rust-lang/backtrace-rs) is to be created before T2 and pinned here.

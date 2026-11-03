@@ -14,17 +14,19 @@
 # ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 # OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 #
-# rust/tests/check.sh PREFIX HOST KERNEL_TARGET [TARGET LLVM_PREFIX]: what a build of this
-# toolchain must be able to do on the host, run by build/build.sh after every build; `just
-# build rust` is not done until it passes. With TARGET (the system's) and llvm/'s install, a
-# Rust hello is linked for it by that clang against EMIBSD_SYSROOT, static and dynamic, and
-# read as the ELF the kernel loads; that it runs is the kernel repository's smoke, T2's proof.
+# rust/tests/check.sh PREFIX HOST LLVM_PREFIX [ARCH...]: what a build of this toolchain must be able to
+# do on the host, run by build/build.sh after every build; `just build rust` is not done until
+# it passes. For each architecture (arm64, amd64: D-0008), core and alloc for the kernel's
+# target, and for the system's a Rust hello linked by llvm/'s clang named after its triple
+# against that architecture's sysroot (EMIBSD_SYSROOT_ARM64, EMIBSD_SYSROOT_AMD64), static and
+# dynamic, read as the ELF the kernel loads; that it runs is the kernel repository's smoke,
+# T2's proof.
 set -eu
 prefix=${1:?prefix}
 host=${2:?host}
-kernel=${3:?kernel target}
-target=${4:-}
-llvm=${5:-}
+llvm=${3:?llvm prefix}
+shift 3
+archs=${*:-aarch64 x86_64}             # LLVM's names; all of them unless named (dist.py checks one per tarball)
 here=$(cd "$(dirname "$0")/.." && pwd)
 version=$(sed -n 's/^version *= *"\([^+"]*\).*/\1/p' "$here/UPSTREAM.toml")
 llvm_version=$(sed -n 's/^version *= *"\([^+"]*\).*/\1/p' "$here/../llvm/UPSTREAM.toml")
@@ -55,12 +57,8 @@ echo "$vv" | grep -q "^LLVM version: $llvm_version\$" || bad "rustc's LLVM is no
 "$cargo" --version | grep -q "^cargo $version" || bad "cargo --version does not say $version"
 [ "$("$rustc" --print sysroot)" = "$prefix" ] || bad "sysroot is $("$rustc" --print sysroot), not $prefix"
 
-# The libraries, where rustc looks for them: std for the host, core and alloc for the kernel.
+# std for the host, and the sources the kernel's rust-toolchain.toml asks for.
 ls "$prefix/lib/rustlib/$host/lib/"libstd-*.rlib >/dev/null 2>&1 || bad "no std for $host"
-for c in core alloc compiler_builtins; do
-    ls "$prefix/lib/rustlib/$kernel/lib/lib$c-"*.rlib >/dev/null 2>&1 || bad "no $c for $kernel"
-done
-ls "$prefix/lib/rustlib/$kernel/lib/"libstd-*.rlib >/dev/null 2>&1 && bad "a std for $kernel: it is a no-std target"
 [ -d "$prefix/lib/rustlib/src/rust/library/core" ] || bad "rust-src is not installed (the kernel's rust-toolchain.toml asks for it)"
 
 # A hello for the host, compiled by the built rustc and run here.
@@ -73,24 +71,14 @@ else
     bad "the host hello did not compile: $(head -5 "$tmp/hello.err")"
 fi
 
-# A no_std crate for the kernel's target: core and alloc link, nothing else is asked for.
+# What each architecture's targets are given: a no_std crate for the kernel's, where core and
+# alloc link and nothing else is asked for; a hello for the system's, with a panic caught.
 cat > "$tmp/nostd.rs" <<'RS'
 #![no_std]
 extern crate alloc;
 pub fn len(v: &alloc::vec::Vec<u8>) -> usize { v.len() }
 RS
-"$rustc" --target "$kernel" --crate-type rlib -O -o "$tmp/libnostd.rlib" "$tmp/nostd.rs" 2> "$tmp/nostd.err" \
-    || bad "the no_std crate for $kernel did not compile: $(head -5 "$tmp/nostd.err")"
-
-# The system's target: std where rustc looks for it, and a hello linked by llvm/'s clang
-# against the sysroot: static PIE and dynamic, the ELF the kernel loads.
-if [ -n "$target" ]; then
-    : "${EMIBSD_SYSROOT:?set EMIBSD_SYSROOT to the target libc, crt and headers}"
-    cc="$llvm/bin/clang"; readelf="$llvm/bin/llvm-readelf"
-    [ -x "$cc" ] || bad "no clang at $llvm/bin (just build llvm first)"
-    ls "$prefix/lib/rustlib/$target/lib/"libstd-*.rlib >/dev/null 2>&1 || bad "no std for $target"
-    "$rustc" --target "$target" --print cfg 2>/dev/null | grep -q '^target_os="emibsd"$' || bad "$target does not say target_os = emibsd"
-    cat > "$tmp/e.rs" <<'RS'
+cat > "$tmp/e.rs" <<'RS'
 use std::io::Write;
 fn main() {
     let v: Vec<String> = std::env::args().collect();
@@ -100,25 +88,51 @@ fn main() {
     std::process::exit(if r.is_ok() { 0 } else { 1 });
 }
 RS
-    link="-C linker=$cc -C link-arg=--sysroot=$EMIBSD_SYSROOT"
-    if "$rustc" --target "$target" $link -C target-feature=+crt-static -O -o "$tmp/es" "$tmp/e.rs" 2> "$tmp/es.err"; then
-        h=$("$readelf" -h "$tmp/es")
-        echo "$h" | grep -q "Machine: *AArch64" || bad "es: not AArch64"
-        echo "$h" | grep -q "Type: *DYN" || bad "es: not a PIE (ET_DYN)"
-        echo "$h" | grep -q "OS/ABI: *UNIX - OpenBSD" || bad "es: ELF OS/ABI byte is not 12 (what the kernel and ld.so recognise)"
-        "$readelf" -d "$tmp/es" 2>/dev/null | grep -q 'NEEDED' && bad "es: the static hello is dynamically linked"
-        "$readelf" -l "$tmp/es" | grep -q 'OPENBSD_RANDOMIZE' || bad "es: no PT_OPENBSD_RANDOMIZE segment"
-        "$readelf" -s "$tmp/es" | grep -q '_Unwind_RaiseException' || bad "es: no unwinder linked in (catch_unwind needs libunwind)"
-    else
-        bad "the hello for $target did not link statically: $(head -8 "$tmp/es.err")"
-    fi
-    if "$rustc" --target "$target" $link -O -o "$tmp/ed" "$tmp/e.rs" 2> "$tmp/ed.err"; then
-        "$readelf" -l "$tmp/ed" | grep -q '/usr/libexec/ld.so' || bad "ed: interpreter is not /usr/libexec/ld.so"
-        "$readelf" -d "$tmp/ed" | grep -q 'libc.so' || bad "ed: libc.so is not NEEDED"
-    else
-        bad "the hello for $target did not link dynamically: $(head -8 "$tmp/ed.err")"
-    fi
-fi
+readelf="$llvm/bin/llvm-readelf"
+default=$("$llvm/bin/clang" -print-target-triple)       # aarch64-emibsd-emibsd<release>: the release the triples carry
+os=${default#aarch64-emibsd-}
+targets=
+for arch in $archs; do
+    case $arch in
+        aarch64) kernel=aarch64-emibsd-none-softfloat; sysroot=${EMIBSD_SYSROOT_ARM64:?set EMIBSD_SYSROOT_ARM64 to the arm64 libc, crt and headers}; machine="AArch64" ;;
+        x86_64)  kernel=x86_64-emibsd-none-softfloat;            sysroot=${EMIBSD_SYSROOT_AMD64:?set EMIBSD_SYSROOT_AMD64 to the amd64 libc, crt and headers}; machine="Advanced Micro Devices X86-64" ;;
+        *) bad "unknown architecture $arch (aarch64, x86_64)"; continue ;;
+    esac
+    target=$arch-emibsd-emibsd
+    targets="$targets, core/alloc for $kernel, std for $target"
 
-[ "$fail" = 0 ] && echo "check.sh: $prefix: ok (rustc $version for $host, core/alloc for $kernel${target:+, std for $target}, LLVM $llvm_version)"
+    for c in core alloc compiler_builtins; do
+        ls "$prefix/lib/rustlib/$kernel/lib/lib$c-"*.rlib >/dev/null 2>&1 || bad "no $c for $kernel"
+    done
+    ls "$prefix/lib/rustlib/$kernel/lib/"libstd-*.rlib >/dev/null 2>&1 && bad "a std for $kernel: it is a no-std target"
+    "$rustc" --target "$kernel" --crate-type rlib -O -o "$tmp/libnostd-$arch.rlib" "$tmp/nostd.rs" 2> "$tmp/nostd-$arch.err" \
+        || bad "the no_std crate for $kernel did not compile: $(head -5 "$tmp/nostd-$arch.err")"
+
+    # The system's target: std where rustc looks for it, and the hello linked by the clang
+    # named after its LLVM triple against the sysroot: static PIE and dynamic, the ELF the kernel loads.
+    cc="$llvm/bin/$arch-emibsd-$os-clang"
+    [ -x "$cc" ] || { bad "no $cc (just build llvm first)"; continue; }
+    ls "$prefix/lib/rustlib/$target/lib/"libstd-*.rlib >/dev/null 2>&1 || bad "no std for $target"
+    "$rustc" --target "$target" --print cfg 2>/dev/null | grep -q '^target_os="emibsd"$' || bad "$target does not say target_os = emibsd"
+    link="-C linker=$cc -C link-arg=--sysroot=$sysroot"
+    if "$rustc" --target "$target" $link -C target-feature=+crt-static -O -o "$tmp/es-$arch" "$tmp/e.rs" 2> "$tmp/es-$arch.err"; then
+        h=$("$readelf" -h "$tmp/es-$arch")
+        echo "$h" | grep -q "Machine: *$machine" || bad "$arch es: not $machine"
+        echo "$h" | grep -q "Type: *DYN" || bad "$arch es: not a PIE (ET_DYN)"
+        echo "$h" | grep -q "OS/ABI: *UNIX - OpenBSD" || bad "$arch es: ELF OS/ABI byte is not 12 (what the kernel and ld.so recognise)"
+        "$readelf" -d "$tmp/es-$arch" 2>/dev/null | grep -q 'NEEDED' && bad "$arch es: the static hello is dynamically linked"
+        "$readelf" -l "$tmp/es-$arch" | grep -q 'OPENBSD_RANDOMIZE' || bad "$arch es: no PT_OPENBSD_RANDOMIZE segment"
+        "$readelf" -s "$tmp/es-$arch" | grep -q '_Unwind_RaiseException' || bad "$arch es: no unwinder linked in (catch_unwind needs libunwind)"
+    else
+        bad "the hello for $target did not link statically: $(head -8 "$tmp/es-$arch.err")"
+    fi
+    if "$rustc" --target "$target" $link -O -o "$tmp/ed-$arch" "$tmp/e.rs" 2> "$tmp/ed-$arch.err"; then
+        "$readelf" -l "$tmp/ed-$arch" | grep -q '/usr/libexec/ld.so' || bad "$arch ed: interpreter is not /usr/libexec/ld.so"
+        "$readelf" -d "$tmp/ed-$arch" | grep -q 'libc.so' || bad "$arch ed: libc.so is not NEEDED"
+    else
+        bad "the hello for $target did not link dynamically: $(head -8 "$tmp/ed-$arch.err")"
+    fi
+done
+
+[ "$fail" = 0 ] && echo "check.sh: $prefix: ok (rustc $version for $host$targets, LLVM $llvm_version)"
 exit $fail

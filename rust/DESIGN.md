@@ -6,8 +6,8 @@ The source at the pin (`UPSTREAM.toml`: rust-lang/rust 1.99.1 from the fork, wit
 `cargo` and `backtrace` submodules it fixes, and the crates.io dependencies `just fetch`
 vendored from its `Cargo.lock` files into `upstream/rust-vendor/`), copied to
 `target/rust/src`, `patches/` applied, built by `build/build.sh` with Rust's own `x.py`,
-against `llvm/`'s LLVM and the sysroot it is given (`EMIBSD_SYSROOT`: the userland's libc,
-crt and headers). Nothing is downloaded by the build: stage0 is the host's pinned rustc and
+against `llvm/`'s LLVM and the sysroots it is given (`EMIBSD_SYSROOT_ARM64`,
+`EMIBSD_SYSROOT_AMD64`: the userland's libc, crt and headers for each architecture). Nothing is downloaded by the build: stage0 is the host's pinned rustc and
 cargo (`rust-toolchain.toml`), the crates come from the vendor directory, no submodule is
 updated, no CI LLVM is fetched.
 
@@ -26,6 +26,11 @@ The plan of T2 (the maintainer, 2026-10-31, D-0006), in three slices:
 3. **The artifact.** The install tree as `rustup toolchain link` takes it, DELIVERY.md
    measured, STATUS `built`. The run under the kernel in QEMU is the kernel repository's.
 
+amd64 joined on 2026-11-02 (D-0008), with the same glue, one more target of each kind: the
+system's `x86_64-emibsd-emibsd`, and the kernel's `x86_64-emibsd-none-softfloat`. The kernel's targets
+carry the vendor `emibsd` since then: `aarch64-emibsd-none-softfloat` and `x86_64-emibsd-none-softfloat`
+in patch 0002, upstream's `-unknown-none` targets with the vendor changed and nothing else.
+
 ## Flags that differ from upstream's defaults, with the reason
 
 `build.sh` writes `target/rust/config.toml`; every line is here.
@@ -36,7 +41,7 @@ The plan of T2 (the maintainer, 2026-10-31, D-0006), in three slices:
 | `build.local-rebuild` | `true` | stage0 is the same version as the source, not the previous beta |
 | `build.submodules` | `false` | the submodules come from the mirrors at the pins; x.py never runs git against upstream URLs |
 | `build.vendor`, `build.locked-deps` | `true` | cargo reads `.cargo/config.toml` of the copy (and `library/.cargo/config.toml`, the tarball's layout), which point at `vendor/` inside the copy: the crates `just fetch` vendored into `upstream/rust-vendor/`, copied in writable, because build scripts copy files with `fs::copy` keeping upstream's read-only mode and then cannot overwrite their own copy (`libnghttp2-sys`), and because the `rust-src` step prunes the vendor directory it is pointed at; `--frozen`: nothing resolves anew |
-| `build.target` | the host, `aarch64-unknown-none-softfloat` (slice 2: `aarch64-emibsd-emibsd`) | the kernel's target gets `core` and `alloc` from here (D-0006); the system's target gets `std` |
+| `build.target` | the host, `aarch64-emibsd-none-softfloat`, `x86_64-emibsd-none-softfloat`, `aarch64-emibsd-emibsd`, `x86_64-emibsd-emibsd` | the kernel's targets get `core` and `alloc` from here (D-0006, D-0008); the system's targets get `std` |
 | `build.extended`, `build.tools` | `true`; `cargo`, `clippy`, `rustfmt`, `src` | what the kernel's `rust-toolchain.toml` asks of a toolchain; `llvm-tools` come from `llvm/` |
 | `build.docs`, `build.compiler-docs` | `false` | not shipped |
 | `build.optimized-compiler-builtins` | `true`, with `src/llvm-project/compiler-rt` (and `libunwind`, which the `rust-src` component ships) linked to `target/llvm/src/` | the C builtins compiled from the pinned, patched LLVM source of `llvm/`; the `src/llvm-project` submodule itself is never fetched (D-0003); a path value would mean a prebuilt library, which T1 does not build for the host |
@@ -54,8 +59,8 @@ The plan of T2 (the maintainer, 2026-10-31, D-0006), in three slices:
 | `rust.llvm-tools` | `true` | `llvm-tools` component from `llvm/`'s LLVM, as rustup ships it |
 | `rust.lld` | `false` | the linker is `llvm/`'s lld through its clang driver, not a bundled `rust-lld` |
 | `target.<host>.llvm-config` | `target/llvm/host/bin/llvm-config`, T1's build tree | rustc's backend is `llvm/`'s LLVM (D-0003); the build tree, not the install, because the install is a toolchain (`LLVM_DISTRIBUTION_COMPONENTS`, `llvm/DESIGN.md`) with no LLVM libraries, headers or `llc`, and rustc links the libraries and ships the tools (`llvm-tools`) |
-| `target.aarch64-unknown-none-softfloat.cc`, `.ar` | `llvm/`'s clang and llvm-ar | the C sources of `compiler_builtins` for the kernel's target |
-| `target.aarch64-emibsd-emibsd.cc`, `.cxx`, `.linker`, `.ar`, `.ranlib`, `.rustflags = -C link-arg=--sysroot=$EMIBSD_SYSROOT`; `CFLAGS_aarch64_emibsd_emibsd=--sysroot=$EMIBSD_SYSROOT` | `llvm/`'s clang, clang++, llvm-ar, llvm-ranlib | the system's target is compiled and linked by the system's own toolchain (T1) against the sysroot; a Rust program for it is linked with `-C linker=<that clang> -C link-arg=--sysroot=...` |
+| `target.<kernel target>.cc`, `.ar`, for `aarch64-emibsd-none-softfloat` and `x86_64-emibsd-none-softfloat` | `llvm/`'s clang and llvm-ar | the C sources of `compiler_builtins` for the kernel's targets; cc-rs names the target to clang |
+| `target.<arch>-emibsd-emibsd.cc`, `.cxx`, `.linker`, `.ar`, `.ranlib`, `.rustflags = -C link-arg=--sysroot=<the arch's sysroot>`; `CFLAGS_<arch>_emibsd_emibsd=--sysroot=<the same>` | `llvm/`'s `<arch>-emibsd-emibsd8.0-clang` and `-clang++`, llvm-ar, llvm-ranlib | the system's targets are compiled and linked by the system's own toolchain (T1) against their sysroot, through the clang named after the target's triple because rustc passes no `--target` to a cc linker and clang's default is arm64's; a Rust program for one is linked with `-C linker=<arch>-emibsd-emibsd8.0-clang -C link-arg=--sysroot=...` |
 
 Kept for T4, by the maintainer's note of 2026-10-31: `rust.strip = true` (upstream's
 releases strip `librustc_driver`'s symbols; ours is 153 MB against rustup's 80 MB for 1.99.1,
@@ -83,7 +88,7 @@ One line per patch of `patches/`: what it changes and why it could not stay upst
 
 | Patch | What |
 |---|---|
-| `0002-rustc-target-emibsd` | `Os::EmiBsd`, `spec/base/emibsd.rs` (what the ABI asks: PIE, dynamic, emulated TLS, full RELRO, frame pointers, structs returned as integers), the target `aarch64-emibsd-emibsd` with `llvm-target` `aarch64-emibsd-emibsd8.0`, vendor `emibsd`, tier 3 |
+| `0002-rustc-target-emibsd` | `Os::EmiBsd`, `spec/base/emibsd.rs` (what the ABI asks: PIE, dynamic, emulated TLS, full RELRO, frame pointers, structs returned as integers), the targets `aarch64-emibsd-emibsd` and `x86_64-emibsd-emibsd` (D-0008; the x86_64 options as the other BSDs' x86_64 targets have them) with `llvm-target` `<arch>-emibsd-emibsd8.0`, vendor `emibsd`, tier 3 |
 | `0003-std-emibsd` | `target_os = "emibsd"` joins every `openbsd` condition of std, unwind and backtrace (the libc interface is the same); EmiBSD's own where the name counts: `std::os::emibsd`, `env::consts::OS`, std's build script; the unwinder links `libunwind` beside `libc++abi` |
 | `0004-libc-emibsd` | the libc crate from its mirror (`.emibsd/libc`, 0.2.189, what 1.99.1's `library/Cargo.lock` fixes): `emibsd` joins `openbsd` in its module selection and check-cfg; `build.sh` places it, patched, in the vendored `libc-0.2.185`'s stead with no checksum, so cargo builds it as the registry crate it replaces (same lint cap; a path dependency would surface upstream's latent warnings under `warnings = deny`); `library/Cargo.lock` drops libc's registry checksum, the one line the lock changes |
 | `0001-bootstrap-vendor-what-is-there` | bootstrap's `default_paths_to_vendor` keeps only the workspaces whose manifest and required submodules are in the tree: `generate-copyright` (run by `dist::Rustc` for the COPYRIGHT files) scans that list with `cargo metadata` and failed on the documentation books and `rustc-perf`, submodules this tree does not carry; the build glue, nothing of what the compiler emits |
@@ -99,7 +104,7 @@ What the upstream restricts and the proof we kept it: the tests that run it unde
 
 ## Dependencies
 
-The sysroot it links against (`EMIBSD_SYSROOT`), the stage0 it bootstraps from (the host's
+The sysroots it links against (`EMIBSD_SYSROOT_ARM64`, `EMIBSD_SYSROOT_AMD64`), the stage0 it bootstraps from (the host's
 pinned toolchain; on EmiBSD, the previous DevTools release), `llvm/`'s `llvm-config`, the
 submodules and crates `UPSTREAM.toml` pins; their licences checked by `tools/crates.py`
 against `docs/POLICIES.md` at every pin bump.

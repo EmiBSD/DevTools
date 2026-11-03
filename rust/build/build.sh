@@ -17,7 +17,7 @@
 # rust/build/build.sh: rust-lang/rust at the pin of UPSTREAM.toml, with DevTools' patch
 # series, built with its own x.py against llvm/'s LLVM (DESIGN.md).
 #
-#   sh rust/build/build.sh            (`just build rust`; EMIBSD_SYSROOT set; COMP_JOBS)
+#   sh rust/build/build.sh            (`just build rust`; EMIBSD_SYSROOT_ARM64 and _AMD64 set; COMP_JOBS)
 #
 # 1. target/rust/src: the fetched source copied (APFS clones: instant), the series applied
 #    with patch -p1, the crates `just fetch` vendored copied in as vendor/ and the two
@@ -25,9 +25,10 @@
 #    series changed (.emibsd-src).
 # 2. target/rust/build: x.py install with target/rust/config.toml: stage0 the host's pinned
 #    rustc and cargo (rust-toolchain.toml), llvm-config from llvm/'s install (T1), rustc,
-#    cargo, clippy, rustfmt and the sources for the host, std for the host, core and alloc
-#    for the kernel's target, std for the system's target; installed under target/rust/install-<host>/, a directory
-#    `rustup toolchain link` accepts.
+#    cargo, clippy, rustfmt and the sources for the host, std for the host, and for each
+#    architecture (arm64, amd64: D-0008) core and alloc for the kernel's target and std for the
+#    system's; installed under target/rust/install-<host>/, a directory `rustup toolchain link`
+#    accepts.
 # 3. tests/check.sh over the result.
 #
 # Never touches upstream/.
@@ -45,8 +46,11 @@ for t in python3 cmake ninja rustup; do command -v $t >/dev/null || { echo "buil
 pin=$(cat "$UP/.pin")
 [ "$pin" = "$(python3 -I -c 'import sys,tomllib; print(tomllib.load(open(sys.argv[1],"rb"))["upstream"]["commit"])' rust/UPSTREAM.toml)" ] \
     || { echo "build: $UP is not at UPSTREAM.toml's commit (just fetch)" >&2; exit 1; }
-: "${EMIBSD_SYSROOT:?set EMIBSD_SYSROOT to the target libc, crt and headers, see DESIGN.md}"
-[ -f "$EMIBSD_SYSROOT/usr/lib/libc.a" ] || { echo "build: $EMIBSD_SYSROOT: no usr/lib/libc.a" >&2; exit 1; }
+: "${EMIBSD_SYSROOT_ARM64:?set EMIBSD_SYSROOT_ARM64 to the arm64 libc, crt and headers, see DESIGN.md}"
+: "${EMIBSD_SYSROOT_AMD64:?set EMIBSD_SYSROOT_AMD64 to the amd64 libc, crt and headers, see DESIGN.md}"
+for s in "$EMIBSD_SYSROOT_ARM64" "$EMIBSD_SYSROOT_AMD64"; do
+    [ -f "$s/usr/lib/libc.a" ] || { echo "build: $s: no usr/lib/libc.a" >&2; exit 1; }
+done
 
 # The host and its stage0: the toolchain rust-toolchain.toml pins, resolved to real binaries
 # (the rustup proxies would pick a toolchain by the directory x.py runs cargo in).
@@ -57,9 +61,11 @@ LLVM=$ROOT/target/llvm/$(cc -dumpmachine 2>/dev/null || echo host)     # T1's in
 LLVM_CONFIG=$ROOT/target/llvm/host/bin/llvm-config                     # T1's build tree: the libraries rustc links, and the tools it ships
 [ -x "$LLVM/bin/clang" ] || { echo "build: $LLVM/bin/clang missing: just build llvm first" >&2; exit 1; }
 [ -x "$LLVM_CONFIG" ] || { echo "build: $LLVM_CONFIG missing: just build llvm first" >&2; exit 1; }
-KERNEL_TARGET=aarch64-unknown-none-softfloat          # the kernel's: core and alloc, no std (D-0006)
-TARGET=aarch64-emibsd-emibsd                          # the system's (D-0004, patches/): std, against the sysroot
-TARGETS="\"$HOST\", \"$KERNEL_TARGET\", \"$TARGET\""
+KERNEL_TARGETS="aarch64-emibsd-none-softfloat x86_64-emibsd-none-softfloat"   # the kernel's (D-0006, D-0008, patches/): core and alloc, no std
+SYSTEM_TARGETS="aarch64-emibsd-emibsd x86_64-emibsd-emibsd"            # the system's (D-0004, D-0008, patches/): std, against the sysroot
+EMIBSD_OS_VERSION=8.0                                 # the release in the targets' LLVM triples (patches/), as llvm/build/build.sh has it
+TARGETS="\"$HOST\""
+for t in $KERNEL_TARGETS $SYSTEM_TARGETS; do TARGETS="$TARGETS, \"$t\""; done
 JOBS=${COMP_JOBS:-6}
 # Not named after the host tuple: rustc derives its sysroot from its dylib's directory and
 # takes a directory so named for lib/rustlib/<host>/lib, three levels deeper than it is.
@@ -193,24 +199,43 @@ lld = false
 [target.$HOST]
 llvm-config = "$LLVM_CONFIG"
 
-[target.$KERNEL_TARGET]
+TOML
+# The kernel's targets: the C sources of compiler_builtins, by llvm/'s clang.
+for t in $KERNEL_TARGETS; do
+    cat >> "$OUT/config.toml" <<TOML
+
+[target.$t]
 cc = "$LLVM/bin/clang"
 ar = "$LLVM/bin/llvm-ar"
+TOML
+done
+# The system's targets: compiled and linked by the clang named after the target's LLVM
+# triple (rustc passes no --target to a cc linker, and clang's default is arm64's) against
+# that architecture's sysroot; the C bits of std (compiler_builtins) see its libc headers.
+for t in $SYSTEM_TARGETS; do
+    arch=${t%%-*}
+    case $arch in
+        aarch64) sysroot=$EMIBSD_SYSROOT_ARM64 ;;
+        x86_64)  sysroot=$EMIBSD_SYSROOT_AMD64 ;;
+    esac
+    clang=$LLVM/bin/$arch-emibsd-emibsd$EMIBSD_OS_VERSION-clang
+    [ -x "$clang" ] || { echo "build: $clang missing: just build llvm first" >&2; exit 1; }
+    cat >> "$OUT/config.toml" <<TOML
 
-[target.$TARGET]
-cc = "$LLVM/bin/clang"
-cxx = "$LLVM/bin/clang++"
-linker = "$LLVM/bin/clang"
+[target.$t]
+cc = "$clang"
+cxx = "$clang++"
+linker = "$clang"
 ar = "$LLVM/bin/llvm-ar"
 ranlib = "$LLVM/bin/llvm-ranlib"
-rustflags = ["-C", "link-arg=--sysroot=$EMIBSD_SYSROOT"]
+rustflags = ["-C", "link-arg=--sysroot=$sysroot"]
 TOML
-# The C bits of std for the system's target (compiler_builtins) see its libc headers.
-export CFLAGS_aarch64_emibsd_emibsd="--sysroot=$EMIBSD_SYSROOT"
-export CXXFLAGS_aarch64_emibsd_emibsd="--sysroot=$EMIBSD_SYSROOT"
+    v=$(echo "$t" | tr - _)
+    export "CFLAGS_$v=--sysroot=$sysroot" "CXXFLAGS_$v=--sysroot=$sysroot"
+done
 
 echo "== x.py install ($HOST; targets: $TARGETS; $JOBS jobs; LLVM $LLVM)"
 rm -rf "$PREFIX"
 (cd "$SRC" && python3 x.py install --config "$ROOT/$OUT/config.toml" --build-dir "$ROOT/$OUT/build")
 echo "== done: $PREFIX"
-sh rust/tests/check.sh "$PREFIX" "$HOST" "$KERNEL_TARGET" "$TARGET" "$LLVM"
+sh rust/tests/check.sh "$PREFIX" "$HOST" "$LLVM"
