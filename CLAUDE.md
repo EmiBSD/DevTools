@@ -39,7 +39,7 @@ answered in Spanish.
   upstream ships it, built with its own CMake: the compiler of the C and C++ of the system and
   the backend rustc builds against (`llvm-config`; rustc 1.99.1 needs 21 or newer). No patch
   of anyone else's, no build glue of anyone else's; rustc's own LLVM submodule is not fetched.
-- **Stable Rust, no nightly.** The `std` for `aarch64-emibsd-emibsd` (tier 3; `llvm-target` `aarch64-emibsd-emibsd8.0`) is built with
+- **Stable Rust, no nightly.** The `std` for `aarch64-emibsd-emibsd` and `x86_64-emibsd-emibsd` (tier 3; `llvm-target` `<arch>-emibsd-emibsd8.0`) is built with
   `x.py` from the stable release's source as part of the toolchain. Stage0 is rustup's rustc
   on the host; on EmiBSD, the previous DevTools release. `rust-toolchain.toml` pins the host
   toolchain the build glue itself runs under.
@@ -65,11 +65,14 @@ answered in Spanish.
 - **The maintainer decides, the agents propose.** A pin bump, a host, a target, a flag that
   changes what the compiler emits, a patch, a dependency: handed back with the question,
   never guessed (`docs/PROCESS.md`).
-- **arm64 first (D-0001).** Only `aarch64` is built, tested and released until the kernel
-  homologates amd64; the `X86` backend is compiled so that no rebuild is needed then.
-- **The target is EmiBSD's own (D-0004).** The toolchains emit for `aarch64-emibsd-emibsd8.0`,
-  carried as our patch series over the pins: LLVM's is `llvm/patches/` (applied 2026-10-31);
-  Rust's, the target spec and `std`'s paths, is T2's work in `rust/patches/`.
+- **arm64 and amd64 (D-0008, superseding D-0001).** Both are built, tested and released:
+  `aarch64` and `x86_64` for the system and for the kernel; arm64 stays first (clang's
+  default triple). One artifact per host and architecture, each with its own sysroot
+  (`EMIBSD_SYSROOT_ARM64`, `EMIBSD_SYSROOT_AMD64`).
+- **The target is EmiBSD's own (D-0004).** The toolchains emit for `aarch64-emibsd-emibsd8.0`
+  and `x86_64-emibsd-emibsd8.0` (D-0008), carried as our patch series over the pins: LLVM's is
+  `llvm/patches/` (applied 2026-10-31); Rust's, the target specs and `std`'s paths, is
+  `rust/patches/`.
 - Commit on the user's "dale", push on "súbelo"; never push otherwise.
 
 ## Directory map
@@ -89,8 +92,8 @@ upstream/  the fetched sources (gitignored); target/ the builds; dist/ the artif
 |---|---|---|
 | T0 | the repository, the pins moved from the userland repository, the tools, the mirror check | `just fetch-check` and `just mirror-check` green; met 2026-10-31 |
 | T1 | upstream LLVM 23.1.4 built from the fork with CMake on the macOS host: stage 1 the host tools, stage 2 the target runtimes | a C and a C++ hello compiled for the target run under the EmiBSD kernel in QEMU; built and checked on the host 2026-10-31 (`llvm/tests/check.sh`), the QEMU run pending |
-| T2 | rustc with `x.py`, macOS host, target `aarch64-emibsd-emibsd` (D-0004: its target spec and `std` paths as `rust/patches/`) and the kernel's `aarch64-unknown-none-softfloat` (D-0006), the userland's sysroot; cargo, clippy, rustfmt and `rust-src` in the artifact | a static Rust hello runs under the EmiBSD kernel in QEMU; built and checked on the host 2026-10-31 (`rust/tests/check.sh`), the QEMU run pending |
-| T3 | GitHub releases: one tarball per host with `.sha256`; consumers fetch by pin | a consumer's toolchain recipe installs it from the release |
+| T2 | rustc with `x.py`, macOS host, targets `aarch64-emibsd-emibsd` and `x86_64-emibsd-emibsd` (D-0004, D-0008: their target specs and `std` paths as `rust/patches/`) and the kernel's `aarch64-emibsd-none-softfloat` and `x86_64-emibsd-none-softfloat` (D-0006, D-0008), the userland's sysroot; cargo, clippy, rustfmt and `rust-src` in the artifact | a static Rust hello runs under the EmiBSD kernel in QEMU; built and checked on the host 2026-10-31 (`rust/tests/check.sh`), the QEMU run pending |
+| T3 | GitHub releases: one tarball per host and architecture (`arm64`, `amd64`) with `.sha256`; consumers fetch by pin | a consumer's toolchain recipe installs it from the release |
 | T4 | self-hosted: rustc built on EmiBSD with T3 as stage0 | after the kernel's N9, when no inherited tree is left |
 
 `docs/TOOLCHAIN.md` is the plan in detail, with the picture of where the repository sits.

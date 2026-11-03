@@ -23,7 +23,7 @@ dependencies, `docs/DECISIONS.md` the decisions.
 - `build/build.sh` copies the pinned source into `target/<name>/src`, applies the patches of
   the series in order with `patch -p1`, and builds in `target/<name>/build`; it never writes
   outside `target/`. It takes the sysroot and the host tools from the environment
-  (`EMIBSD_SYSROOT`, `EMIBSD_CC`, `EMIBSD_LLVM_BIN`, `COMP_JOBS`), with the defaults
+  (`EMIBSD_SYSROOT_ARM64`, `EMIBSD_SYSROOT_AMD64`, `EMIBSD_CC`, `EMIBSD_LLVM_BIN`, `COMP_JOBS`), with the defaults
   `docs/TOOLCHAIN.md` lists; it refuses to run when the sysroot is missing rather than
   guessing one.
 - A flag that differs from how the upstream builds the same thing is a line in
@@ -43,9 +43,10 @@ dependencies, `docs/DECISIONS.md` the decisions.
 
 ## The artifacts (T3)
 
-- A release is a tarball per host triple with its `.sha256`, named
-  `<name>-<version>-<host>.tar.zst`, built from a tagged commit, with `SOURCE_DATE_EPOCH`
-  set to the commit's time so two builds of the same tag compare.
+- A release is a tarball per host triple and target architecture with its `.sha256`, named
+  `<name>-<version>-<host>-<arch>.tar.zst` (`arm64`, `amd64`; D-0008), built from a tagged
+  commit, with `SOURCE_DATE_EPOCH` set to the commit's time so two builds of the same tag
+  compare.
 - A consumer fetches by version and checks the sum before it unpacks; nothing is fetched as
   "latest".
 
