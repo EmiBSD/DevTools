@@ -118,6 +118,24 @@ for arch in $archs; do
     else
         bad "$arch: x.cpp did not compile and link: $(head -8 "$tmp/x-$arch.err")"
     fi
+
+    # The system's section names give the OpenBSD-ABI segments (patch 0006); the two
+    # syscalls names in one link are refused.
+    printf '%s\n' 'int r __attribute__((section(".emibsd.randomdata"))) = 1;' \
+        'int m __attribute__((section(".emibsd.mutable"))) = 1;' \
+        'int s __attribute__((section(".emibsd.syscalls"))) = 1;' 'void _start(void) {}' > "$tmp/e.c"
+    echo 'int t __attribute__((section(".openbsd.syscalls"))) = 1;' > "$tmp/o.c"
+    if "$cc" -c -o "$tmp/e-$arch.o" "$tmp/e.c" && "$cc" -c -o "$tmp/o-$arch.o" "$tmp/o.c" &&
+       "$prefix/bin/ld.lld" -o "$tmp/e-$arch" "$tmp/e-$arch.o" 2> "$tmp/e-$arch.err"; then
+        l=$("$readelf" -lW "$tmp/e-$arch")
+        for seg in OPENBSD_RANDOMIZE OPENBSD_MUTABLE OPENBSD_SYSCALLS; do
+            echo "$l" | grep -q "$seg" || bad "$arch e: .emibsd.* gave no PT_$seg segment"
+        done
+        "$prefix/bin/ld.lld" -o "$tmp/eo-$arch" "$tmp/e-$arch.o" "$tmp/o-$arch.o" 2> "$tmp/eo-$arch.err" &&
+            bad "$arch: .openbsd.syscalls and .emibsd.syscalls linked together"
+    else
+        bad "$arch: the .emibsd.* sections did not link: $(head -5 "$tmp/e-$arch.err")"
+    fi
 done
 
 [ "$fail" = 0 ] && echo "check.sh: $prefix: ok (clang $version for$triples)"

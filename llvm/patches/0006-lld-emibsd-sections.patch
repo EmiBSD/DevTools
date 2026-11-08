@@ -1,0 +1,65 @@
+lld: the .emibsd.* names of the OpenBSD-ABI segment sections
+
+Why a patch: the system's libc, csu and ld.so place the data that the
+run-time link-editor and the kernel treat specially in sections named
+.emibsd.randomdata, .emibsd.mutable and .emibsd.syscalls, the system's own
+names; upstream lld makes PT_OPENBSD_RANDOMIZE, PT_OPENBSD_MUTABLE and
+PT_OPENBSD_SYSCALLS only from the .openbsd.* names, so a binary built with
+the new names would get no such segment: no random stack guard, no pinned
+system calls. This makes each .emibsd.* name give the same segment as its
+.openbsd.* counterpart, with the same type, flags and placement, including
+.emibsd.randomdata's place in RELRO; the .openbsd.* names stay accepted
+while the system moves to the new ones. A link that carries both
+.openbsd.syscalls and .emibsd.syscalls is an error rather than two
+PT_OPENBSD_SYSCALLS segments. Keyed, as upstream's code is, on the ELF
+OS/ABI byte, which patch 0001 sets for the target; no numeric value and no
+enumerator name changes. Written by EmiBSD (ISC); carried by DevTools over
+the pinned tag. Author: Emilio Navarrete Lineros, 2026-11-07.
+
+--- a/lld/ELF/Writer.cpp
++++ b/lld/ELF/Writer.cpp
+@@ -610,7 +610,8 @@
+                      s == ".init_array" || s == ".preinit_array";
+ 
+   bool abiSpecific =
+-      ctx.arg.osabi == ELFOSABI_OPENBSD && s == ".openbsd.randomdata";
++      ctx.arg.osabi == ELFOSABI_OPENBSD &&
++      (s == ".openbsd.randomdata" || s == ".emibsd.randomdata");
+ 
+   return abiAgnostic || abiSpecific;
+ }
+@@ -2379,19 +2380,32 @@
+         ->add(ctx.in.ehFrameHdr->getParent());
+ 
+   if (ctx.arg.osabi == ELFOSABI_OPENBSD) {
++    // EmiBSD names these sections .emibsd.*; the .openbsd.* names are
++    // still accepted, and each name gives the same segment.
++
+     // PT_OPENBSD_MUTABLE makes the dynamic linker fill the segment with
+     // zero data, like bss, but it can be treated differently.
+     if (OutputSection *cmd = findSection(ctx, ".openbsd.mutable"))
+       addHdr(PT_OPENBSD_MUTABLE, cmd->getPhdrFlags())->add(cmd);
++    if (OutputSection *cmd = findSection(ctx, ".emibsd.mutable"))
++      addHdr(PT_OPENBSD_MUTABLE, cmd->getPhdrFlags())->add(cmd);
+ 
+     // PT_OPENBSD_RANDOMIZE makes the dynamic linker fill the segment
+     // with random data.
+     if (OutputSection *cmd = findSection(ctx, ".openbsd.randomdata"))
+       addHdr(PT_OPENBSD_RANDOMIZE, cmd->getPhdrFlags())->add(cmd);
++    if (OutputSection *cmd = findSection(ctx, ".emibsd.randomdata"))
++      addHdr(PT_OPENBSD_RANDOMIZE, cmd->getPhdrFlags())->add(cmd);
+ 
+     // PT_OPENBSD_SYSCALLS makes the kernel and dynamic linker register
+-    // system call sites.
+-    if (OutputSection *cmd = findSection(ctx, ".openbsd.syscalls"))
++    // system call sites. A link that carries both names is an error
++    // rather than two such segments.
++    OutputSection *syscalls = findSection(ctx, ".openbsd.syscalls");
++    OutputSection *emiSyscalls = findSection(ctx, ".emibsd.syscalls");
++    if (syscalls && emiSyscalls)
++      Err(ctx) << "both .openbsd.syscalls and .emibsd.syscalls are present;"
++                  " PT_OPENBSD_SYSCALLS takes one";
++    else if (OutputSection *cmd = syscalls ? syscalls : emiSyscalls)
+       addHdr(PT_OPENBSD_SYSCALLS, cmd->getPhdrFlags())->add(cmd);
+   }
+ 
