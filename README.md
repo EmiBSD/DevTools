@@ -56,7 +56,8 @@ flowchart LR
     rust["rust, cargo (mirrors)"] -- "1.99.1" --> dev
     dev -- "clang, lld, libc++; rustc" --> ul["the userland"]
     dev -- "clang, lld; rustc with core and alloc for its target" --> k["the kernel"]
-    dev -- "the comp set" --> os["the releases"]
+    dev -- "the native toolchain for comp (T3b)" --> ul
+    ul -- "the sets, comp among them" --> os["the releases"]
     ul -. "sysroot: libc, crt, headers" .-> dev
 ```
 
@@ -72,8 +73,9 @@ of OpenBSD is in it (D-0003).
 | T0 | the repository, the pins, the tools, the mirror check | `just check` green | met 2026-10-31 |
 | T1 | upstream LLVM 23.1.4 built from the fork with CMake on the macOS host: the host tools, then the target runtimes | a C and a C++ hello compiled for the target run under the EmiBSD kernel in QEMU | built and checked on the host 2026-10-31 (`llvm/tests/check.sh`); the QEMU run pending |
 | T2 | rustc with `x.py` against T1's LLVM, macOS host, targets `aarch64-emibsd-emibsd` and `x86_64-emibsd-emibsd` (decisions D-0004, D-0008: their target specs and `std` paths as `rust/patches/`) and the kernel's `aarch64-emibsd-none-softfloat` and `x86_64-emibsd-none-softfloat` (D-0006, D-0008), the userland's sysroots | a static Rust hello runs under the EmiBSD kernel in QEMU | built and checked on the host 2026-10-31 (`rust/tests/check.sh`): rustc, the tools, `std` for the host and for `aarch64-emibsd-emibsd`, `core`/`alloc` for the kernel's target; the QEMU run pending |
-| T3 | GitHub releases: one tarball per host and architecture (`arm64`, `amd64`; D-0008) with `.sha256`; consumers fetch by pin | a consumer's toolchain recipe installs it from the release | released 2026-10-31 for arm64, made again 2026-11-02 for arm64 and amd64 under the same versions (D-0008): `llvm-23.1.4+emibsd.1` (67 MB per architecture: the compiler, the linker and the binutils, `llvm/DESIGN.md`) and `rust-1.99.1+emibsd.1` (144 MB per architecture, built against it), each with its `.sha256`. The first releases of the day, at 22.1.6 and 1.98.1, were withdrawn when both pins moved the same day; the kernel had built and booted with them (its own isolated test). The consumer's recipe pending |
-| T4 | self-hosted: rustc built on EmiBSD with T3 as stage0 | after the kernel's N9, when no inherited tree is left | |
+| T3 | GitHub releases: one tarball per host and architecture (`arm64`, `amd64`; D-0008) with `.sha256`; consumers fetch by pin | a consumer's toolchain recipe installs it from the release | released 2026-10-31 for arm64, made again 2026-11-02 for arm64 and amd64 under the same versions (D-0008): `llvm-23.1.4+emibsd.1` (67 MB per architecture: the compiler, the linker and the binutils, `llvm/DESIGN.md`) and `rust-1.99.1+emibsd.1` (144 MB per architecture, built against it), each with its `.sha256`. The first releases of the day, at 22.1.6 and 1.98.1, were withdrawn when both pins moved the same day; the kernel had built and booted with them (its own isolated test). Since then `llvm-23.1.4+emibsd.2` (2026-11-07: lld takes the `.emibsd.*` section names, patch 0006), which the kernel pins and the userland builds with. The consumer's recipe pending |
+| T3b | the native toolchain (D-0009): LLVM (clang, lld, `llvm-ar`, the binutils, libc++) and Rust (rustc, cargo, `std`) cross-built on the Mac for the host `aarch64-emibsd-emibsd8.0`, then amd64, one artifact per architecture; the userland puts it in its `comp` set | under the EmiBSD kernel in QEMU, the native clang compiles and links a C and a C++ hello, `llvm-ar` builds an archive, the native rustc builds a Rust hello | decided 2026-11-08; not started |
+| T4 | self-hosted: rustc built on EmiBSD with T3b as stage0 | after the kernel's N9, when no inherited tree is left | |
 
 ## Using it
 

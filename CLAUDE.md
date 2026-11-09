@@ -94,7 +94,8 @@ upstream/  the fetched sources (gitignored); target/ the builds; dist/ the artif
 | T1 | upstream LLVM 23.1.4 built from the fork with CMake on the macOS host: stage 1 the host tools, stage 2 the target runtimes | a C and a C++ hello compiled for the target run under the EmiBSD kernel in QEMU; built and checked on the host 2026-10-31 (`llvm/tests/check.sh`), the QEMU run pending |
 | T2 | rustc with `x.py`, macOS host, targets `aarch64-emibsd-emibsd` and `x86_64-emibsd-emibsd` (D-0004, D-0008: their target specs and `std` paths as `rust/patches/`) and the kernel's `aarch64-emibsd-none-softfloat` and `x86_64-emibsd-none-softfloat` (D-0006, D-0008), the userland's sysroot; cargo, clippy, rustfmt and `rust-src` in the artifact | a static Rust hello runs under the EmiBSD kernel in QEMU; built and checked on the host 2026-10-31 (`rust/tests/check.sh`), the QEMU run pending |
 | T3 | GitHub releases: one tarball per host and architecture (`arm64`, `amd64`) with `.sha256`; consumers fetch by pin | a consumer's toolchain recipe installs it from the release |
-| T4 | self-hosted: rustc built on EmiBSD with T3 as stage0 | after the kernel's N9, when no inherited tree is left |
+| T3b | the native toolchain (D-0009): LLVM and Rust cross-built on the Mac for the host `aarch64-emibsd-emibsd8.0`, then amd64, released per architecture; the userland puts it in its `comp` set | under the EmiBSD kernel in QEMU, the native clang builds a C and a C++ hello, `llvm-ar` an archive, the native rustc a Rust hello |
+| T4 | self-hosted: rustc built on EmiBSD with T3b as stage0 | after the kernel's N9, when no inherited tree is left |
 
 `docs/TOOLCHAIN.md` is the plan in detail, with the picture of where the repository sits.
 

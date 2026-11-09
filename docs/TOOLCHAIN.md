@@ -28,19 +28,19 @@ flowchart LR
     llvm -- "llvmorg-23.1.4" --> dev
     rust -- "1.99.1" --> dev
     cargo -- "submodule src/tools/cargo" --> dev
-    dev -- "clang, lld, libc++; rustc for its written programs" --> ul
+    dev -- "the cross toolchain; the native one for comp (T3b)" --> ul
     dev -- "clang, lld; rustc with core and alloc for the kernel's target" --> k
-    dev -- "the comp set" --> os
+    ul -- "the sets, comp with the native toolchain" --> os
     ul -. "sysroot: libc, crt, headers" .-> dev
 ```
 
 | Flow | What | Why |
 |---|---|---|
 | mirrors to DevTools | rust-lang/rust at the pinned stable tag with its `cargo` submodule; upstream LLVM at `llvmorg-23.1.4` | the only inputs; nothing comes from OpenBSD (D-0003); one LLVM, built with its own CMake, for the C and for rustc's backend |
-| DevTools to the userland | clang, lld and libc++; the Rust cross toolchain when a program written for EmiBSD exists | one toolchain for the whole base system; what OpenBSD's build glue passed to its own patched clang is adapted there, where that C is built |
+| DevTools to the userland | the cross toolchain (T1-T3): clang, lld and libc++; the Rust cross toolchain when a program written for EmiBSD exists. The native toolchain (T3b, D-0009): clang, lld, `llvm-ar`, rustc, cargo and `std` running on EmiBSD, the compiler's part of the `comp` set | one toolchain for the whole base system; what OpenBSD's build glue passed to its own patched clang is adapted there, where that C is built; the userland assembles `comp` as it does the other sets |
 | DevTools to the kernel | rustc with `core` and `alloc` for `aarch64-emibsd-none-softfloat` and `x86_64-emibsd-none-softfloat`, clang and lld for its assembly and the programs its smokes run (T1, T2; D-0006, D-0008) | one toolchain for the kernel as for the userland; the kernel's `rust-toolchain.toml` names the same stable version |
 | the userland to DevTools (dotted) | the sysroots, one per architecture: libc, crt, headers, by path (`EMIBSD_SYSROOT_ARM64`, `EMIBSD_SYSROOT_AMD64`) | a binary the toolchain produces needs a libc; `std`'s rlibs compile without one, so the cycle breaks there |
-| DevTools to the release repository | the comp set: the artifacts by pin and checksum | it assembles and releases; it builds nothing of its own |
+| the userland to the release repository | the install sets, `comp` among them with DevTools' native toolchain inside (D-0009) | it puts them on the media as they are; DevTools gives the release repository nothing directly |
 
 DevTools reads nothing of the three: no source, no rules, no logs (D-0005). What it knows of
 them is in this table.
@@ -51,7 +51,8 @@ them is in this table.
 |---|---|---|---|
 | `aarch64-apple-darwin` | `aarch64-emibsd-emibsd8.0`, `x86_64-emibsd-emibsd8.0` | T1, T2: the development machine | rustup's 1.99.1 (`rust-toolchain.toml`) |
 | `x86_64-unknown-linux-gnu` | the same | only if a consumer's CI needs it (open decision) | rustup's |
-| `aarch64-emibsd-emibsd8.0` | itself | T4, after the kernel's milestone N9 (no inherited tree left) | the previous DevTools release |
+| `aarch64-emibsd-emibsd8.0`, then `x86_64-emibsd-emibsd8.0` | itself | T3b (D-0009): cross-built on the Mac, for the `comp` set | rustup's 1.99.1 on the Mac (a cross build) |
+| `aarch64-emibsd-emibsd8.0` | itself | T4, after the kernel's milestone N9 (no inherited tree left): built on EmiBSD | T3b's artifact |
 
 amd64 is a target beside arm64 since 2026-11-02 (decision D-0008, superseding D-0001); arm64
 stays first, clang's default triple. The targets are EmiBSD's own, taught to each toolchain by
@@ -91,7 +92,14 @@ Installing any of them is the user's.
    `<name>-<version>` (`llvm-23.1.4+emibsd.1`), the GitHub release with the tarballs, their sums
    and notes. A consumer's recipe downloads by that tag and verifies the sum before it
    unpacks; nothing is fetched as "latest". Signed with signify when the userland ships it.
-4. **T4.** The same `x.py` on EmiBSD, stage0 the T3 artifact for `aarch64-emibsd-emibsd8.0`.
+4. **T3b** (D-0009). The same two builds on the Mac with the EmiBSD triple as the host:
+   LLVM's CMake cross-compiling clang, lld, `llvm-ar` and the binutils with T1's clang against
+   the sysroot, then `x.py` building rustc, cargo and `std` for host `aarch64-emibsd-emibsd`
+   against that LLVM; amd64 after arm64. Released like T3's, one artifact per architecture
+   with the EmiBSD triple as `<host>`; the userland puts it in `comp`. Proof: under the EmiBSD
+   kernel in QEMU, the native clang compiles and links a C and a C++ hello, `llvm-ar` builds an
+   archive, the native rustc builds a Rust hello.
+5. **T4.** The same `x.py` on EmiBSD, stage0 T3b's artifact for `aarch64-emibsd-emibsd8.0`.
    From then on each release builds from the previous one; the first cross-built one is the
    root of trust and is recorded here with its hash. Noted for T4 (the maintainer,
    2026-10-31): `rust.strip = true`, which upstream's own releases use and ours do not yet;

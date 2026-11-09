@@ -32,6 +32,7 @@ Date: YYYY-MM-DD · Status: proposed | accepted | superseded by D-MMMM
 | D-0006 | 2026-10-31 | accepted | T2's scope: the kernel's target, the artifact's tools, the crates vendored by `just fetch`, the pins follow the release |
 | D-0007 | 2026-10-31 | accepted | A heavy build takes the machine's lock `/tmp/emibsd/ci.lock` |
 | D-0008 | 2026-11-02 | accepted | amd64 now: both architectures built, checked and released, one artifact per host and architecture; the kernel's targets carry the vendor emibsd |
+| D-0009 | 2026-11-08 | accepted | The userland assembles the `comp` set; DevTools gives it a native toolchain, LLVM and Rust running on EmiBSD, as milestone T3b; the driver carries the system's link defaults |
 
 ---
 
@@ -347,3 +348,49 @@ The maintainer, 2026-11-02:
   with their tags and made again under the same versions from the commit that carries this
   decision, with both architectures; their sums changed.
 - T4 (self-hosting) stays arm64 first.
+
+---
+
+# D-0009: The userland assembles the `comp` set; DevTools gives it a native toolchain, LLVM and Rust running on EmiBSD, as milestone T3b; the driver carries the system's link defaults
+
+Date: 2026-11-08 · Status: accepted
+
+## Context
+This repository's documents had DevTools hand "the comp set" to the release repository, which
+would package it. That is not how the sets are made: the userland repository builds all four
+install sets, `comp` among them, from the base system's own lists, and the release repository
+puts them on the media unchanged. What `comp` lacks is the compiler's part: a `cc`, an `ld` and
+an `ar` that run on EmiBSD. Without them the system's boot-time relinking (the libraries'
+reordering, the `ssh-agent` relink) fails, harmlessly but with a layer of randomisation lost.
+T3's artifacts cannot fill that gap: they run on the macOS host. The only EmiBSD host in the
+plan was T4, rustc built on EmiBSD itself after the kernel's N9, which assumed a native
+artifact without any milestone producing it. Separately, the userland gave two lld options,
+`--undefined-version` and `--ignore-function-address-equality`, to every link through a clang
+configuration file of its own, because the system's libraries are linked with them and
+upstream lld does not default to them.
+
+## Decision
+The maintainer, 2026-11-08:
+- The userland repository assembles the `comp` set, as it does the other sets. DevTools gives
+  it the compiler's part, by version and SHA-256; the release repository ships the userland's
+  sets as they are.
+- A new milestone, T3b, before T4: LLVM and Rust cross-built on the macOS host for the host
+  `aarch64-emibsd-emibsd8.0`, then `x86_64-emibsd-emibsd8.0`: clang, lld, `llvm-ar` and the
+  binutils with libc++ and compiler-rt; rustc, cargo and `std`. Released as one artifact per
+  architecture, like T3's, with the EmiBSD triple as the host.
+- The EmiBSD driver passes `--undefined-version` and `--ignore-function-address-equality` on
+  every link it makes, before the user's arguments (`llvm/patches/0007`); in the driver, not in
+  lld, so a direct `ld.lld` invocation, as the kernel's, is unchanged.
+
+## Consequences
+- `docs/TOOLCHAIN.md`, the READMEs and `DELIVERY.md` say that DevTools gives the userland its
+  toolchains, cross and native, and that the userland gives the release repository the sets.
+- T3b's proof: under the EmiBSD kernel in QEMU, the native clang compiles and links a C hello
+  and a C++ hello, `llvm-ar` builds an archive, and the native rustc builds a Rust hello. LLVM
+  comes first; Rust follows on it, since rustc for an EmiBSD host links against T3b's LLVM.
+- It is the first time LLVM and rustc run on EmiBSD's libc and kernel: what they need of the
+  system (threads, `mmap`, signals, the dynamic linker) is found by running them, and a gap
+  there is the userland's or the kernel's to fill, reported to them, not patched around here.
+- T4 keeps its scope, rustc built on EmiBSD itself, and takes T3b's artifact as its stage0.
+- The userland drops its clang configuration file's two link options once it takes a release
+  carrying patch 0007.
