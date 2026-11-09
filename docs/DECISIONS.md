@@ -33,6 +33,7 @@ Date: YYYY-MM-DD · Status: proposed | accepted | superseded by D-MMMM
 | D-0007 | 2026-10-31 | accepted | A heavy build takes the machine's lock `/tmp/emibsd/ci.lock` |
 | D-0008 | 2026-11-02 | accepted | amd64 now: both architectures built, checked and released, one artifact per host and architecture; the kernel's targets carry the vendor emibsd |
 | D-0009 | 2026-11-08 | accepted | The userland assembles the `comp` set; DevTools gives it a native toolchain, LLVM and Rust running on EmiBSD, as milestone T3b; the driver carries the system's link defaults |
+| D-0010 | 2026-11-08 | accepted | T3b's shape: the system's paths, dynamic against the base system's libc and libc++, Rust under `/usr` with its tools and the kernel's targets; libc++ and libc++abi with the system's sonames, the unwinder inside libc++abi |
 
 ---
 
@@ -394,3 +395,44 @@ The maintainer, 2026-11-08:
 - T4 keeps its scope, rustc built on EmiBSD itself, and takes T3b's artifact as its stage0.
 - The userland drops its clang configuration file's two link options once it takes a release
   carrying patch 0007.
+
+---
+
+# D-0010: T3b's shape: the system's paths, dynamic against the base system's libc and libc++, Rust under `/usr` with its tools and the kernel's targets; libc++ and libc++abi with the system's sonames, the unwinder inside libc++abi
+
+Date: 2026-11-08 · Status: accepted
+
+## Context
+D-0009 left open how the native toolchain sits in the installed system. The userland, which
+assembles the sets, brought four points to the maintainer (where the files go, how the tools
+link, where Rust goes, which Rust components); two more were asked here (the shared C++
+runtime's names, and where the unwinder lives). The base system's own lists expect
+`libc++.so.13.0` and `libc++abi.so.10.0` in `base`, the unwinder inside libc++abi, and
+profiled `_p` archives in `comp`; upstream's build names the libraries after the ABI version
+(`libc++.so.1`), builds a separate libunwind, and cannot make profiled archives.
+
+## Decision
+The maintainer, 2026-11-08 (the first four points in the userland's session, confirmed here):
+- The paths are the system's: the tools in `/usr/bin`, with `cc`, `c++`, `ld` and `ar` as
+  links; clang's resource directory in `/usr/lib/clang/<major>`; libc++'s headers in
+  `/usr/include/c++/v1`; the static runtimes in `/usr/lib`.
+- The tools link dynamically against the base system's libc and libc++; LLVM's own libraries
+  stay static inside each tool, as upstream links them. The base system carries the shared
+  C++ runtime.
+- Rust goes in `comp` under `/usr`: rustc and cargo in `/usr/bin`, `std` in `/usr/lib/rustlib`;
+  with rustfmt, clippy, `rust-src` and the kernel's `*-emibsd-none-softfloat` targets.
+- libc++ and libc++abi carry the system's major.minor names and sonames, `libc++.so.13.0` and
+  `libc++abi.so.10.0`, with no unversioned link; the ABI namespace stays upstream's `__1`.
+- The unwinder is built into libc++abi, shared and static, with no separate libunwind; the
+  driver stops passing `-lunwind`. No profiled archives.
+
+## Consequences
+- A patch of ours to libc++'s and libc++abi's CMake sets the file names and sonames; upstream
+  has no option for them. The unwinder's placement uses upstream's own CMake options.
+- The cross toolchain (T3) changes its target runtimes the same way, so the cross toolchain,
+  the native one and the base system carry one libc++: a new patch level, `+emibsd.4`, before
+  T3b's first artifact. Patch 0003 drops `-lunwind`.
+- The userland lays the native artifact out by its lists, patched to what the artifact holds,
+  and places `libc++.so.13.0` and `libc++abi.so.10.0` in `base`.
+- T3b's native tools need the base system's shared libc++ at run time; its proof in QEMU runs
+  them on a system carrying that runtime.
