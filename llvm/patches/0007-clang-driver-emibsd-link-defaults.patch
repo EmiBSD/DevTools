@@ -1,0 +1,33 @@
+clang: the EmiBSD driver links with the system's link defaults
+
+Why a patch: the system's libraries are linked with two lld options the
+inherited build expects of the system's own linker: --undefined-version (a
+version script may name a symbol the library does not define; libc's
+Symbols.list names __data_start) and --ignore-function-address-equality (a
+function's address need not be unique, so protected symbols stay
+preemptible). Upstream lld turns neither on by default, and the userland
+gave both to every link through a clang configuration file of its own. This
+makes the EmiBSD driver pass them on every link it makes, before the user's
+arguments, so -Wl,--no-undefined-version still turns the first off. In the
+driver, not in lld: a direct ld.lld invocation (the kernel's) is unchanged.
+Applies over 0003, which creates ToolChains/EmiBSD.cpp. Written by EmiBSD
+(ISC); carried by DevTools over the pinned tag. Author: Emilio Navarrete
+Lineros, 2026-11-08.
+
+--- a/clang/lib/Driver/ToolChains/EmiBSD.cpp
++++ b/clang/lib/Driver/ToolChains/EmiBSD.cpp
+@@ -70,6 +70,14 @@
+ 
+   // libunwind finds the frames through the eh_frame header.
+   CmdArgs.push_back("--eh-frame-hdr");
++
++  // What the system's libraries are linked with: a version script may name a
++  // symbol the library does not define (libc's Symbols.list names
++  // __data_start), and a function's address need not be unique, so protected
++  // symbols stay preemptible. Before the user's arguments, so that
++  // -Wl,--no-undefined-version still turns the first off.
++  CmdArgs.push_back("--undefined-version");
++  CmdArgs.push_back("--ignore-function-address-equality");
+   if (Static) {
+     CmdArgs.push_back("-Bstatic");
+   } else {

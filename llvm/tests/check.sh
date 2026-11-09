@@ -119,6 +119,12 @@ for arch in $archs; do
         bad "$arch: x.cpp did not compile and link: $(head -8 "$tmp/x-$arch.err")"
     fi
 
+    # The driver links with the system's link defaults (patch 0007).
+    ll=$("$cc" --sysroot="$sysroot" -### -o "$tmp/l-$arch" "$tmp/h.c" 2>&1)
+    for o in --undefined-version --ignore-function-address-equality; do
+        echo "$ll" | grep -q -- "\"$o\"" || bad "$arch: the driver's link line lacks $o"
+    done
+
     # The system's section names give the OpenBSD-ABI segments (patch 0006); the two
     # syscalls names in one link are refused.
     printf '%s\n' 'int r __attribute__((section(".emibsd.randomdata"))) = 1;' \
