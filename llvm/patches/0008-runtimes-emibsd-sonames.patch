@@ -1,0 +1,42 @@
+libc++, libc++abi: the system's names for the shared libraries
+
+Why a patch: the system names its shared libraries
+lib<name>.so.<major>.<minor>, with that name as the SONAME, which its
+run-time link-editor looks up (lib%s.so.%d.%d); the base system expects
+libc++.so.13.0 and libc++abi.so.10.0. Upstream names libc++'s shared library
+after its ABI version (libc++.so.1, the version that also names the inline
+namespace __1) and libc++abi's after a fixed 1, with no option to change the
+file name or the SONAME alone. This sets both for CMAKE_SYSTEM_NAME EmiBSD,
+nothing else: the ABI namespace stays __1. The build glue removes the
+unversioned links CMake installs beside them (D-0010). Written by EmiBSD
+(ISC); carried by DevTools over the pinned tag. Author: Emilio Navarrete
+Lineros, 2026-11-08.
+
+--- a/libcxx/src/CMakeLists.txt
++++ b/libcxx/src/CMakeLists.txt
+@@ -189,6 +189,11 @@
+       SOVERSION     "${LIBCXX_ABI_VERSION}"
+       DEFINE_SYMBOL ""
+   )
++  # EmiBSD names its shared libraries lib<name>.so.<major>.<minor>, the name
++  # its run-time link-editor looks up; the ABI namespace stays __1.
++  if (CMAKE_SYSTEM_NAME STREQUAL "EmiBSD")
++    set_target_properties(cxx_shared PROPERTIES VERSION "13.0" SOVERSION "13.0")
++  endif()
+   cxx_add_common_build_flags(cxx_shared)
+ 
+   if(ZOS)
+--- a/libcxxabi/src/CMakeLists.txt
++++ b/libcxxabi/src/CMakeLists.txt
+@@ -213,6 +213,11 @@
+       SOVERSION "1"
+       VERSION "${LIBCXXABI_LIBRARY_VERSION}"
+   )
++  # EmiBSD names its shared libraries lib<name>.so.<major>.<minor>, the name
++  # its run-time link-editor looks up.
++  if (CMAKE_SYSTEM_NAME STREQUAL "EmiBSD")
++    set_target_properties(cxxabi_shared PROPERTIES VERSION "10.0" SOVERSION "10.0")
++  endif()
+ 
+   if (ZOS)
+     add_custom_command(TARGET cxxabi_shared POST_BUILD

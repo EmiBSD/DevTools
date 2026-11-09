@@ -18,7 +18,7 @@ Lineros, 2026-11-08.
 +++ b/clang/lib/Driver/ToolChains/EmiBSD.cpp
 @@ -70,6 +70,14 @@
  
-   // libunwind finds the frames through the eh_frame header.
+   // The unwinder finds the frames through the eh_frame header.
    CmdArgs.push_back("--eh-frame-hdr");
 +
 +  // What the system's libraries are linked with: a version script may name a

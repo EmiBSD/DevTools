@@ -4,7 +4,8 @@ Why a patch: the driver must know how the system links and what it defaults to.
 ToolChains/EmiBSD.{h,cpp} (new, ISC) are the toolchain: PIE by default, rcrt0.o
 for a static PIE (-static, or -static-pie as rustc asks), gcrt0.o for -pg, crtbegin/crtend from the sysroot's /usr/lib,
 the entry __start, --eh-frame-hdr, /usr/libexec/ld.so, lld, compiler-rt's
-builtins before and after -lc, libc++ with libc++abi and libunwind, the strong
+builtins before and after -lc, libc++ with libc++abi (which carries the
+unwinder, D-0010), the strong
 stack protector, asynchronous unwind tables, /usr/include of the sysroot and nothing
 else for C; for C++, libc++'s headers where clang's generic search finds them (the
 toolchain's include/<triple>/c++/v1 and include/c++/v1, else the sysroot's
@@ -167,9 +168,9 @@ Navarrete Lineros, 2026-10-31.
 +// link for it. The system's ABI, as its kernel and libc present it: PIE
 +// executables by default, static PIE through rcrt0.o, the run-time link-editor
 +// at /usr/libexec/ld.so, the entry point __start, crtbegin/crtend from the
-+// sysroot's /usr/lib, compiler-rt's builtins, libc++ with libc++abi over
-+// libunwind, the stack protector on by default (strong), and lld as the
-+// linker.
++// sysroot's /usr/lib, compiler-rt's builtins, libc++ with libc++abi (which
++// carries the unwinder), the stack protector on by default (strong), and
++// lld as the linker.
 +//
 +//===----------------------------------------------------------------------===//
 +
@@ -261,7 +262,7 @@ Navarrete Lineros, 2026-10-31.
 +#endif // LLVM_CLANG_LIB_DRIVER_TOOLCHAINS_EMIBSD_H
 --- /dev/null
 +++ b/clang/lib/Driver/ToolChains/EmiBSD.cpp
-@@ -0,0 +1,210 @@
+@@ -0,0 +1,209 @@
 +//===--- EmiBSD.cpp - EmiBSD ToolChain Implementations ----------*- C++ -*-===//
 +//
 +// Copyright (c) 2026 Emilio Navarrete Lineros <enavarre@outlook.com>
@@ -332,7 +333,7 @@ Navarrete Lineros, 2026-10-31.
 +    CmdArgs.push_back("__start");
 +  }
 +
-+  // libunwind finds the frames through the eh_frame header.
++  // The unwinder finds the frames through the eh_frame header.
 +  CmdArgs.push_back("--eh-frame-hdr");
 +  if (Static) {
 +    CmdArgs.push_back("-Bstatic");
@@ -467,7 +468,6 @@ Navarrete Lineros, 2026-10-31.
 +  if (Args.hasArg(options::OPT_fexperimental_library))
 +    CmdArgs.push_back("-lc++experimental");
 +  CmdArgs.push_back("-lc++abi");
-+  CmdArgs.push_back("-lunwind");
 +  CmdArgs.push_back("-lpthread");
 +}
 +

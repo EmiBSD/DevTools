@@ -77,11 +77,23 @@ for arch in $archs; do
     echo "$macros" | grep -q '#define __WCHAR_TYPE__ int' || bad "wchar_t is not int ($triple)"
 
     # The runtimes for the target, where the driver looks for them.
-    for f in lib/$triple/libc++.a lib/$triple/libc++abi.a lib/$triple/libunwind.a \
+    for f in lib/$triple/libc++.a lib/$triple/libc++abi.a lib/$triple/libc++.so.13.0 lib/$triple/libc++abi.so.10.0 \
              include/$triple/c++/v1/__config_site include/c++/v1/vector \
              lib/clang/$major/include/stddef.h lib/clang/$major/lib/$triple/libclang_rt.builtins.a; do
         [ -f "$prefix/$f" ] || bad "missing $f ($triple)"
     done
+
+    # The shared C++ runtime by the system's names, the unwinder inside libc++abi (D-0010).
+    for f in libc++.so libc++abi.so libunwind.a libunwind.so; do
+        [ -e "$prefix/lib/$triple/$f" ] && bad "lib/$triple/$f installed: the runtimes go by the system's names, the unwinder inside libc++abi"
+    done
+    for l in libc++.so.13.0 libc++abi.so.10.0; do
+        [ -f "$prefix/lib/$triple/$l" ] || continue
+        "$readelf" -d "$prefix/lib/$triple/$l" | grep -q "SONAME.*\[$l\]" || bad "$triple: $l's SONAME is not $l"
+    done
+    [ -f "$prefix/lib/$triple/libc++.so.13.0" ] && { "$readelf" -d "$prefix/lib/$triple/libc++.so.13.0" | grep -q 'NEEDED.*\[libc++abi.so.10.0\]' || bad "$triple: libc++.so.13.0 does not need libc++abi.so.10.0"; }
+    [ -f "$prefix/lib/$triple/libc++abi.so.10.0" ] && { "$prefix/bin/llvm-nm" -D --defined-only "$prefix/lib/$triple/libc++abi.so.10.0" | grep -q ' _Unwind_RaiseException$' || bad "$triple: libc++abi.so.10.0 does not export the unwinder"; }
+    [ -f "$prefix/lib/$triple/libc++abi.a" ] && { "$prefix/bin/llvm-nm" --defined-only "$prefix/lib/$triple/libc++abi.a" 2>/dev/null | grep -q ' _Unwind_RaiseException$' || bad "$triple: libc++abi.a does not carry the unwinder"; }
 
     # A C program compiled and linked, static PIE, against the sysroot: the ELF the kernel loads.
     if "$cc" --sysroot="$sysroot" -static -O2 -o "$tmp/h-$arch" "$tmp/h.c" 2> "$tmp/h-$arch.err"; then
@@ -117,6 +129,13 @@ for arch in $archs; do
         "$prefix/bin/llvm-nm" "$tmp/x-$arch" | grep -q '__cxa_throw' || bad "$arch x: libc++abi was not linked in"
     else
         bad "$arch: x.cpp did not compile and link: $(head -8 "$tmp/x-$arch.err")"
+    fi
+
+    # A dynamic C++ program needs the system's shared C++ runtime by its name.
+    if "$cxx" --sysroot="$sysroot" -O2 -o "$tmp/xd-$arch" "$tmp/x.cpp" 2> "$tmp/xd-$arch.err"; then
+        "$readelf" -d "$tmp/xd-$arch" | grep -q 'NEEDED.*\[libc++.so.13.0\]' || bad "$arch xd: libc++.so.13.0 is not NEEDED"
+    else
+        bad "$arch: x.cpp did not link dynamically: $(head -8 "$tmp/xd-$arch.err")"
     fi
 
     # The driver links with the system's link defaults (patch 0007).
