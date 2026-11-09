@@ -145,6 +145,7 @@ cmake -G Ninja -S "$SRC/runtimes" -B "$OUT/runtimes-$T" \
     -DLLVM_ENABLE_PER_TARGET_RUNTIME_DIR=ON \
     -DLIBCXXABI_ENABLE_SHARED=ON -DLIBCXX_ENABLE_SHARED=ON \
     -DLIBUNWIND_ENABLE_SHARED=OFF -DLIBUNWIND_INSTALL_LIBRARY=OFF \
+    -DLIBCXXABI_ENABLE_STATIC_UNWINDER=ON \
     -DLIBCXXABI_STATICALLY_LINK_UNWINDER_IN_SHARED_LIBRARY=ON \
     -DLIBCXXABI_STATICALLY_LINK_UNWINDER_IN_STATIC_LIBRARY=ON \
     -DLIBCXX_USE_COMPILER_RT=ON -DLIBCXXABI_USE_COMPILER_RT=ON -DLIBCXXABI_USE_LLVM_UNWINDER=ON \
@@ -152,8 +153,9 @@ cmake -G Ninja -S "$SRC/runtimes" -B "$OUT/runtimes-$T" \
     -DLIBCXX_INCLUDE_BENCHMARKS=OFF -DLIBCXX_INCLUDE_TESTS=OFF -DLIBCXXABI_INCLUDE_TESTS=OFF -DLIBUNWIND_INCLUDE_TESTS=OFF
 ninja -C "$OUT/runtimes-$T" -j "$JOBS" install
 # The shared runtimes go by the system's names alone (D-0010, patch 0008): the unversioned
-# links CMake installs beside libc++.so.13.0 and libc++abi.so.10.0 are not the system's.
-rm -f "$PREFIX/lib/$T/libc++.so" "$PREFIX/lib/$T/libc++abi.so"
+# links CMake installs beside libc++.so.13.0 and libc++abi.so.10.0 are not the system's; and
+# no libunwind of its own, though an install made before D-0010 left one in the prefix.
+rm -f "$PREFIX/lib/$T/libc++.so" "$PREFIX/lib/$T/libc++abi.so" "$PREFIX/lib/$T"/libunwind.*
 done
 echo "== done: $PREFIX"
 sh llvm/tests/check.sh "$PREFIX"
