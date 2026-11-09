@@ -26,7 +26,7 @@
 # architecture, target/llvm/native-<triple>/build is the CMake build and
 # target/llvm/native-<triple>/root the tree as installed (DESTDIR, prefix /usr):
 #   usr/bin                  clang, clang++, clang-cpp, ld.lld, the llvm-* binutils;
-#                            cc, c++, ld and ar as links (the system's names)
+#                            cc, c++, ld, ar and the binutils' names as links (the system's)
 #   usr/lib/clang/<major>    clang's resource directory: its headers, the builtins
 #   usr/lib                  libc++, libc++abi (the unwinder inside), static and shared
 #   usr/include/c++/v1       libc++'s headers, __config_site among them
@@ -109,11 +109,14 @@ for f in libc++.a libc++abi.a libc++experimental.a libc++.so.13.0 libc++abi.so.1
 done
 cp -R "$PREFIX/include/c++/v1" "$DEST/usr/include/c++/v1"
 cp "$PREFIX/include/$T/c++/v1/__config_site" "$DEST/usr/include/c++/v1/__config_site"
-# The system's names for the compiler, the linker and the archiver.
+# The system's names for the compiler, the linker, the archiver and the binutils (D-0010, and the
+# maintainer's of 2026-11-09 for the binutils), so the base system's own versions can go.
 ln -sf clang "$DEST/usr/bin/cc"
 ln -sf clang++ "$DEST/usr/bin/c++"
 ln -sf ld.lld "$DEST/usr/bin/ld"
-ln -sf llvm-ar "$DEST/usr/bin/ar"
+for t in ar nm objdump strip ranlib readelf size strings objcopy; do
+    ln -sf llvm-$t "$DEST/usr/bin/$t"
+done
 echo "== native done: $DEST"
 sh llvm/tests/native-check.sh "$DEST" "$T"
 done

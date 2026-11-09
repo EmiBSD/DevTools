@@ -117,7 +117,9 @@ architecture's sysroot (`CMAKE_SYSTEM_NAME` EmiBSD, as stage 2), with stage 1's 
 (`LLVM_NATIVE_TOOL_DIR`); the same distribution as the cross toolchain, installed with
 `DESTDIR` under prefix `/usr` into `target/llvm/native-<triple>/root`, then stage 2's runtimes
 copied where the installed system has them (`usr/lib`, `usr/lib/clang/<major>`,
-`usr/include/c++/v1` with `__config_site`) and `cc`, `c++`, `ld`, `ar` as links. The tools link
+`usr/include/c++/v1` with `__config_site`) and `cc`, `c++`, `ld`, `ar` as links, with `nm`,
+`objdump`, `strip`, `ranlib`, `readelf`, `size`, `strings`, `objcopy` to their LLVM tools (the
+maintainer, 2026-11-09), so the base system's own versions can go. The tools link
 dynamically against the system's libc and `libc++.so.13.0`, LLVM's libraries static inside each
 (D-0010); no rpath (`CMAKE_SKIP_RPATH`); zlib, zstd, libxml2, libedit, libpfm and libffi off,
 none being a shared library of the system's in the sysroot yet. `tests/native-check.sh` checks
