@@ -122,13 +122,15 @@ for arch in $archs; do
         echo "$h" | grep -q "OS/ABI: *UNIX - OpenBSD" || bad "$arch es: ELF OS/ABI byte is not 12 (what the kernel and ld.so recognise)"
         "$readelf" -d "$tmp/es-$arch" 2>/dev/null | grep -q 'NEEDED' && bad "$arch es: the static hello is dynamically linked"
         "$readelf" -l "$tmp/es-$arch" | grep -q 'OPENBSD_RANDOMIZE' || bad "$arch es: no PT_OPENBSD_RANDOMIZE segment"
-        "$readelf" -s "$tmp/es-$arch" | grep -q '_Unwind_RaiseException' || bad "$arch es: no unwinder linked in (catch_unwind needs libunwind)"
+        "$readelf" -s "$tmp/es-$arch" | grep -q '_Unwind_RaiseException' || bad "$arch es: no unwinder linked in (catch_unwind needs the unwinder libc++abi carries)"
     else
         bad "the hello for $target did not link statically: $(head -8 "$tmp/es-$arch.err")"
     fi
     if "$rustc" --target "$target" $link -O -o "$tmp/ed-$arch" "$tmp/e.rs" 2> "$tmp/ed-$arch.err"; then
         "$readelf" -l "$tmp/ed-$arch" | grep -q '/usr/libexec/ld.so' || bad "$arch ed: interpreter is not /usr/libexec/ld.so"
         "$readelf" -d "$tmp/ed-$arch" | grep -q 'libc.so' || bad "$arch ed: libc.so is not NEEDED"
+        "$readelf" -d "$tmp/ed-$arch" | grep -q 'NEEDED.*\[libc++abi.so.10.0\]' || bad "$arch ed: libc++abi.so.10.0 (the unwinder) is not NEEDED"
+        "$readelf" -d "$tmp/ed-$arch" | grep -q 'NEEDED.*libunwind' && bad "$arch ed: a separate libunwind is NEEDED"
     else
         bad "the hello for $target did not link dynamically: $(head -8 "$tmp/ed-$arch.err")"
     fi

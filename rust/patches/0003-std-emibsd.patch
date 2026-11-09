@@ -9,8 +9,8 @@ the file-system calls, dl_iterate_phdr for backtraces, libc++abi for the
 unwinder); what carries the system's name is EmiBSD's own: std::os::emibsd
 (the raw types and MetadataExt, as std::os::openbsd has them),
 std::env::consts::OS = "emibsd", the target_os list of std's build script;
-the unwinder links libunwind too, because DevTools builds libc++abi over
-LLVM's libunwind as a library of its own. Written by EmiBSD (ISC) over
+libc++abi carries the unwinder, as on OpenBSD (DevTools D-0010), so the
+unwinder links libc++abi alone. Written by EmiBSD (ISC) over
 upstream's text (Apache-2.0 OR MIT), carried by DevTools over the pinned
 tag, offered upstream when stable. Author: Emilio Navarrete Lineros,
 2026-10-31.
@@ -1063,7 +1063,7 @@ tag, offered upstream when stable. Author: Emilio Navarrete Lineros,
              all(target_family = "wasm", target_feature = "atomics"),
 --- a/library/unwind/src/lib.rs
 +++ b/library/unwind/src/lib.rs
-@@ -176,14 +176,19 @@
+@@ -176,14 +176,14 @@
  #[link(name = "gcc_s", cfg(not(target_feature = "crt-static")))]
  unsafe extern "C" {}
  
@@ -1077,11 +1077,6 @@ tag, offered upstream when stable. Author: Emilio Navarrete Lineros,
  #[link(name = "c++abi")]
  unsafe extern "C" {}
  
-+// EmiBSD's libc++abi is built over LLVM's libunwind as a library of its own (DevTools, llvm/).
-+#[cfg(target_os = "emibsd")]
-+#[link(name = "unwind")]
-+unsafe extern "C" {}
-+
  #[cfg(any(target_os = "solaris", target_os = "illumos"))]
  #[link(name = "gcc_s")]
  unsafe extern "C" {}
