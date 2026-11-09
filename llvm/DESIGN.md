@@ -75,6 +75,7 @@ upstream when it is stable.
 | `0006-lld-emibsd-sections` | `.emibsd.randomdata`, `.emibsd.mutable` and `.emibsd.syscalls`, the system's names, give the same `PT_OPENBSD_RANDOMIZE`, `PT_OPENBSD_MUTABLE` and `PT_OPENBSD_SYSCALLS` segments (same values, flags and placement, `.emibsd.randomdata` in RELRO) as the `.openbsd.*` names, which stay accepted during the move; both syscalls names in one link are an error, not two segments |
 | `0007-clang-driver-emibsd-link-defaults` | every link the driver makes passes `--undefined-version` and `--ignore-function-address-equality`, before the user's arguments: what the system's libraries are linked with (a version script naming a symbol the library lacks, protected symbols preemptible), which upstream lld does not default to; in the driver, so a direct `ld.lld` (the kernel's) is unchanged |
 | `0008-runtimes-emibsd-sonames` | libc++'s and libc++abi's shared libraries take the system's names and sonames, `libc++.so.13.0` and `libc++abi.so.10.0`, which its `ld.so` looks up and the base system's lists expect (D-0010); upstream names them after the ABI version, with no option for the name alone; the ABI namespace stays `__1` |
+| `0009-llvm-host-emibsd` | LLVM's support library and CMake learn EmiBSD as a host, as OpenBSD's interface (statfs, the executable's path from argv[0], no /proc, `getthrid`, `<pthread_np.h>`, `dl_iterate_phdr`, `<endian.h>`; no Mach, no `-z defs`): what the native toolchain needs to run there (T3b, D-0009); the macOS host build is unchanged |
 
 Defaults the driver turns on for the target, which change what the compiler emits, each a
 decision of this repository (D-0004) and reversible here:
@@ -107,3 +108,17 @@ static for the target, a C++ hello against libc++; under the EmiBSD kernel in QE
 The host's CMake, Ninja, Python 3 and a C++ compiler (Apple clang on the Mac); the sysroot
 for stage 2 (the userland repository's libc, crt and headers; until then the base sets the
 kernel boots, given by path). No stage0: LLVM bootstraps from the host compiler.
+
+## The native toolchain (T3b, D-0009, D-0010)
+
+`build/native.sh` (`just native llvm [aarch64|x86_64]`), after `build.sh`: the same patched
+source, cross-compiled by stage 1's clang for the host `<arch>-emibsd-emibsd8.0` against the
+architecture's sysroot (`CMAKE_SYSTEM_NAME` EmiBSD, as stage 2), with stage 1's tablegens
+(`LLVM_NATIVE_TOOL_DIR`); the same distribution as the cross toolchain, installed with
+`DESTDIR` under prefix `/usr` into `target/llvm/native-<triple>/root`, then stage 2's runtimes
+copied where the installed system has them (`usr/lib`, `usr/lib/clang/<major>`,
+`usr/include/c++/v1` with `__config_site`) and `cc`, `c++`, `ld`, `ar` as links. The tools link
+dynamically against the system's libc and `libc++.so.13.0`, LLVM's libraries static inside each
+(D-0010); no rpath (`CMAKE_SKIP_RPATH`); zlib, zstd, libxml2, libedit, libpfm and libffi off,
+none being a shared library of the system's in the sysroot yet. `tests/native-check.sh` checks
+the tree and every program's ELF without running it; the proof is the run in QEMU.

@@ -37,6 +37,10 @@ build name:
     # under the machine's lock /tmp/emibsd/ci.lock (D-0007): never two heavy builds at once
     python3 -I tools/upstream.py check {{name}} && python3 -I tools/lock.py /tmp/emibsd/ci.lock sh {{name}}/build/build.sh
 
+# The native toolchain (T3b, D-0009): `just native llvm [aarch64|x86_64]`, after `just build llvm`.
+native name *archs:
+    python3 -I tools/upstream.py check {{name}} && python3 -I tools/lock.py /tmp/emibsd/ci.lock sh {{name}}/build/native.sh {{archs}}
+
 # The artifact of a built toolchain: dist/<name>-<version>-<host>.tar.zst and .sha256, then checked unpacked elsewhere.
 dist name:
     python3 -I tools/dist.py {{name}}
@@ -57,4 +61,4 @@ cve name:
 check: mirror-check
     python3 -I -m py_compile tools/upstream.py tools/mirror.py tools/cve.py tools/watch.py tools/crates.py tools/dist.py tools/lock.py
     python3 -I tools/crates.py rust
-    sh -n llvm/build/build.sh rust/build/build.sh tools/release.sh
+    sh -n llvm/build/build.sh llvm/build/native.sh llvm/tests/native-check.sh rust/build/build.sh tools/release.sh

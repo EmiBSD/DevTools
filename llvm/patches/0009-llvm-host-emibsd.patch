@@ -1,0 +1,156 @@
+llvm: EmiBSD as a host
+
+Why a patch: LLVM's support library picks its host code by macro and its
+CMake by system name, and neither knows EmiBSD; the native toolchain (T3b,
+D-0009) runs LLVM on EmiBSD. The system's libc presents OpenBSD's interface,
+so __EmiBSD__ joins the OpenBSD conditions where the host is chosen: the
+file-system statistics through statfs in <sys/mount.h>, the executable's path
+from argv[0], no /proc, <pthread_np.h> and getthrid() for the thread id, the
+thread-name length, dl_iterate_phdr for backtraces, <endian.h>, libc++'s
+call_once; and EmiBSD joins the system names of config-ix.cmake (no Mach,
+no malloc/malloc.h) and of HandleLLVMOptions.cmake (no -z defs, as for
+OpenBSD). The macOS host build is unchanged. Written by EmiBSD (ISC);
+carried by DevTools over the pinned tag. Author: Emilio Navarrete Lineros,
+2026-11-09.
+
+--- a/llvm/lib/Support/Unix/Path.inc
++++ b/llvm/lib/Support/Unix/Path.inc
+@@ -73,13 +73,13 @@
+ #include <sys/types.h>
+ #if !defined(__APPLE__) && !defined(__OpenBSD__) && !defined(__FreeBSD__) &&   \
+     !defined(__linux__) && !defined(__FreeBSD_kernel__) && !defined(_AIX) &&   \
+-    !defined(__managarm__)
++    !defined(__managarm__) && !defined(__EmiBSD__)
+ #include <sys/statvfs.h>
+ #define STATVFS statvfs
+ #define FSTATVFS fstatvfs
+ #define STATVFS_F_FRSIZE(vfs) vfs.f_frsize
+ #else
+-#if defined(__OpenBSD__) || defined(__FreeBSD__)
++#if defined(__OpenBSD__) || defined(__FreeBSD__) || defined(__EmiBSD__)
+ #include <sys/mount.h>
+ #include <sys/param.h>
+ #elif defined(__linux__) || defined(__managarm__)
+@@ -126,7 +126,7 @@
+ const file_t kInvalidFile = -1;
+ 
+ #if defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__) ||     \
+-    defined(__FreeBSD_kernel__) || defined(__linux__) ||                       \
++    defined(__EmiBSD__) || defined(__FreeBSD_kernel__) || defined(__linux__) ||                       \
+     defined(__CYGWIN__) || defined(__DragonFly__) || defined(_AIX) ||          \
+     defined(__GNU__) ||                                                        \
+     (defined(__sun__) && defined(__svr4__) || defined(__HAIKU__)) ||           \
+@@ -287,7 +287,7 @@
+   // Fall back to the classical detection.
+   if (getprogpath(exe_path, argv0))
+     return exe_path;
+-#elif defined(__OpenBSD__) || defined(__HAIKU__)
++#elif defined(__OpenBSD__) || defined(__EmiBSD__) || defined(__HAIKU__)
+   char exe_path[PATH_MAX];
+   // argv[0] only
+   if (getprogpath(exe_path, argv0) != NULL)
+@@ -1031,7 +1031,7 @@
+ // FreeBSD optionally provides /proc/self/fd, but it is incompatible with
+ // Linux. The thing to use is realpath.
+ //
+-#if !defined(__FreeBSD__) && !defined(__OpenBSD__)
++#if !defined(__FreeBSD__) && !defined(__OpenBSD__) && !defined(__EmiBSD__)
+ #define TRY_PROC_SELF_FD
+ #endif
+ 
+--- a/llvm/lib/Support/Unix/Threading.inc
++++ b/llvm/lib/Support/Unix/Threading.inc
+@@ -29,7 +29,8 @@
+ 
+ #include <pthread.h>
+ 
+-#if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__DragonFly__)
++#if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__EmiBSD__) ||     \
++    defined(__DragonFly__)
+ #include <pthread_np.h> // For pthread_getthreadid_np() / pthread_set_name_np()
+ #endif
+ 
+@@ -47,7 +48,7 @@
+ #include <lwp.h> // For _lwp_self()
+ #endif
+ 
+-#if defined(__OpenBSD__)
++#if defined(__OpenBSD__) || defined(__EmiBSD__)
+ #include <unistd.h> // For getthrid()
+ #endif
+ 
+@@ -154,7 +155,7 @@
+   return uint64_t(pthread_getthreadid_np());
+ #elif defined(__NetBSD__)
+   return uint64_t(_lwp_self());
+-#elif defined(__OpenBSD__)
++#elif defined(__OpenBSD__) || defined(__EmiBSD__)
+   return uint64_t(getthrid());
+ #elif defined(__ANDROID__)
+   return uint64_t(gettid());
+@@ -183,7 +184,7 @@
+ #elif defined(__FreeBSD__) || defined(__FreeBSD_kernel__) ||                   \
+     defined(__DragonFly__)
+   return 16;
+-#elif defined(__OpenBSD__)
++#elif defined(__OpenBSD__) || defined(__EmiBSD__)
+   return 24;
+ #elif defined(__CYGWIN__)
+   return 16;
+--- a/llvm/lib/Support/Unix/Signals.inc
++++ b/llvm/lib/Support/Unix/Signals.inc
+@@ -561,7 +561,7 @@
+ #if ENABLE_BACKTRACES && defined(HAVE_BACKTRACE) &&                            \
+     (defined(__linux__) || defined(__FreeBSD__) ||                             \
+      defined(__FreeBSD_kernel__) || defined(__NetBSD__) ||                     \
+-     defined(__OpenBSD__) || defined(__DragonFly__))
++     defined(__OpenBSD__) || defined(__EmiBSD__) || defined(__DragonFly__))
+ struct DlIteratePhdrData {
+   void **StackTrace;
+   int depth;
+--- a/llvm/include/llvm/ADT/bit.h
++++ b/llvm/include/llvm/ADT/bit.h
+@@ -30,7 +30,8 @@
+ 
+ #if defined(__linux__) || defined(__GNU__) || defined(__HAIKU__) ||            \
+     defined(__Fuchsia__) || defined(__EMSCRIPTEN__) || defined(__NetBSD__) ||  \
+-    defined(__OpenBSD__) || defined(__DragonFly__) || defined(__managarm__)
++    defined(__OpenBSD__) || defined(__DragonFly__) || defined(__managarm__) || \
++    defined(__EmiBSD__)
+ #include <endian.h>
+ #elif defined(_AIX)
+ #include <sys/machine.h>
+--- a/llvm/include/llvm/Support/Threading.h
++++ b/llvm/include/llvm/Support/Threading.h
+@@ -26,7 +26,8 @@
+ #define LLVM_THREADING_USE_STD_CALL_ONCE 1
+ #elif defined(LLVM_ON_UNIX) &&                                                 \
+     (defined(_LIBCPP_VERSION) ||                                               \
+-     !(defined(__NetBSD__) || defined(__OpenBSD__) || defined(__powerpc__)))
++     !(defined(__NetBSD__) || defined(__OpenBSD__) || defined(__EmiBSD__) ||    \
++       defined(__powerpc__)))
+ // std::call_once from libc++ is used on all Unix platforms. Other
+ // implementations like libstdc++ are known to have problems on NetBSD,
+ // OpenBSD and PowerPC.
+--- a/llvm/cmake/config-ix.cmake
++++ b/llvm/cmake/config-ix.cmake
+@@ -12,7 +12,7 @@
+ include(CheckProblematicConfigurations)
+ include(HandleLLVMStdlib)
+ 
+-if (ANDROID OR CYGWIN OR CMAKE_SYSTEM_NAME MATCHES "AIX|DragonFly|FreeBSD|Haiku|Linux|NetBSD|OpenBSD|SunOS")
++if (ANDROID OR CYGWIN OR CMAKE_SYSTEM_NAME MATCHES "AIX|DragonFly|EmiBSD|FreeBSD|Haiku|Linux|NetBSD|OpenBSD|SunOS")
+   set(HAVE_MACH_MACH_H 0)
+   set(HAVE_MALLOC_MALLOC_H 0)
+   set(HAVE_PTHREAD_H 1)
+--- a/llvm/cmake/modules/HandleLLVMOptions.cmake
++++ b/llvm/cmake/modules/HandleLLVMOptions.cmake
+@@ -336,7 +336,7 @@
+ 
+ # Pass -Wl,-z,defs. This makes sure all symbols are defined. Otherwise a DSO
+ # build might work on ELF but fail on MachO/COFF.
+-if(NOT (CMAKE_SYSTEM_NAME MATCHES "Darwin|FreeBSD|OpenBSD|DragonFly|AIX|OS390|Emscripten" OR
++if(NOT (CMAKE_SYSTEM_NAME MATCHES "Darwin|FreeBSD|OpenBSD|EmiBSD|DragonFly|AIX|OS390|Emscripten" OR
+         WIN32 OR CYGWIN) AND
+    NOT LLVM_USE_SANITIZER)
+   set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,-z,defs")
