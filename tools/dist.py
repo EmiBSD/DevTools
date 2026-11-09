@@ -18,6 +18,10 @@ one per target architecture (arm64, amd64: D-0008).
 
 usage: dist.py <llvm|rust>        pack the install tree once per architecture, then unpack each
                                   elsewhere and run tests/check.sh over it
+       dist.py <llvm|rust> --native [arm64|amd64 ...]
+                                  the native toolchain (T3b, D-0009): pack build/native.sh's tree of
+                                  each architecture, <name>-<version>-<EmiBSD host>-<arch>, whose usr/
+                                  is laid over the system's, and run tests/native-check.sh over it
 
 Each tarball holds one directory, <name>-<version>-<host>-<arch>/, with the install tree as
 build/build.sh left it, less what belongs to the other architecture's targets (their runtimes,
@@ -134,19 +138,30 @@ def add_tree(tar, top, src: Path, arch, epoch):
             tar.addfile(info)
 
 
-def pack(name, arch):
+def native_host(name, arch):
+    """The EmiBSD host of a native tree: LLVM's triple for llvm/, Rust's name for rust/."""
+    return f"{ARCHS[arch]}-emibsd-emibsd8.0" if name == "llvm" else f"{ARCHS[arch]}-emibsd-emibsd"
+
+
+def pack(name, arch, native=False):
     for var in ("EMIBSD_SYSROOT_ARM64", "EMIBSD_SYSROOT_AMD64"):
         if not os.environ.get(var):
             raise SystemExit(f"dist: set {var} (that architecture's libc, crt and headers): the unpacked check "
                              "links programs against it, as the build does; nothing is packed without it")
     toml = tomllib.load(open(ROOT / name / "UPSTREAM.toml", "rb"))
     version = toml["upstream"]["version"]
-    host = HOSTS.get((platform.system(), platform.machine()))
-    if not host:
-        raise SystemExit(f"dist: unknown host {platform.system()} {platform.machine()}")
-    tree = install_tree(name, host)
-    if not (tree / "bin").is_dir():
-        raise SystemExit(f"dist: {tree.relative_to(ROOT)} is not built (just build {name})")
+    if native:
+        host = native_host(name, arch)
+        tree = ROOT / "target" / name / f"native-{host}" / "root"
+        if not (tree / "usr" / "bin").is_dir():
+            raise SystemExit(f"dist: {tree.relative_to(ROOT)} is not built (just native {name} {ARCHS[arch]})")
+    else:
+        host = HOSTS.get((platform.system(), platform.machine()))
+        if not host:
+            raise SystemExit(f"dist: unknown host {platform.system()} {platform.machine()}")
+        tree = install_tree(name, host)
+        if not (tree / "bin").is_dir():
+            raise SystemExit(f"dist: {tree.relative_to(ROOT)} is not built (just build {name})")
     epoch = int(os.environ.get("SOURCE_DATE_EPOCH") or run("git", "log", "-1", "--format=%ct", cwd=ROOT))
     top = f"{name}-{version}-{host}-{arch}"
     out = ROOT / "dist"
@@ -158,14 +173,17 @@ def pack(name, arch):
     zstd = subprocess.Popen(["zstd", "-19", "-T0", "-q", "-f", "-o", str(tarball)], stdin=subprocess.PIPE)
     with tarfile.open(fileobj=zstd.stdin, mode="w|", format=tarfile.PAX_FORMAT) as tar:
         add_tree(tar, top, tree, arch, epoch)
-        add_bytes(tar, f"{top}/MANIFEST", manifest(name, toml, version, host, arch, targets_of(tree, arch), epoch).encode(), epoch)
-        add_bytes(tar, f"{top}/share/doc/emibsd/LICENSE", (ROOT / "LICENSE").read_bytes(), epoch)
+        targets = targets_of(tree / "usr" if native else tree, arch)
+        add_bytes(tar, f"{top}/MANIFEST", manifest(name, toml, version, host, arch, targets, epoch).encode(), epoch)
+        # The licences travel with what is installed: under usr/ for a native tree, laid over the system's.
+        doc = f"{top}/usr/share/doc/emibsd/{name}" if native else f"{top}/share/doc/emibsd"
+        add_bytes(tar, f"{doc}/LICENSE", (ROOT / "LICENSE").read_bytes(), epoch)
         for p in toml.get("patches", {}).get("series", []):
-            add_bytes(tar, f"{top}/share/doc/emibsd/patches/{p}", (ROOT / name / "patches" / p).read_bytes(), epoch)
+            add_bytes(tar, f"{doc}/patches/{p}", (ROOT / name / "patches" / p).read_bytes(), epoch)
         src = ROOT / "target" / name / "src"
         for rel, arc in LICENSES[name]:
             if (src / rel).exists():
-                add_bytes(tar, f"{top}/share/doc/emibsd/{arc}", (src / rel).read_bytes(), epoch)
+                add_bytes(tar, f"{doc}/{arc}", (src / rel).read_bytes(), epoch)
     zstd.stdin.close()
     if zstd.wait() != 0:
         raise SystemExit("dist: zstd failed")
@@ -180,13 +198,17 @@ def seal(tarball):
     print(f"dist: {tarball.name}.sha256: {digest}")
 
 
-def check(name, arch, top, tarball):
+def check(name, arch, top, tarball, native=False):
     """Unpack elsewhere and run tests/check.sh there: the artifact works away from target/."""
     where = ROOT / "target" / "dist-check"
     shutil.rmtree(where, ignore_errors=True)
     where.mkdir(parents=True)
     subprocess.run(f"zstd -dc '{tarball}' | tar -xf - -C '{where}'", shell=True, check=True)
     prefix = where / top
+    if native:
+        print(f"dist: native-check.sh over the unpacked {top}")
+        subprocess.run(["sh", str(ROOT / name / "tests" / "native-check.sh"), str(prefix), native_host(name, arch)], check=True)
+        return
     if name == "llvm":
         args = [str(prefix), ARCHS[arch]]
     else:
@@ -197,12 +219,16 @@ def check(name, arch, top, tarball):
 
 
 def main(argv):
-    if len(argv) != 1 or argv[0] not in ("llvm", "rust"):
+    if not argv or argv[0] not in ("llvm", "rust") or (len(argv) > 1 and argv[1] != "--native"):
         print(__doc__); return 2
-    for arch in ARCHS:
-        top, tarball = pack(argv[0], arch)
+    native = len(argv) > 1
+    archs = argv[2:] or list(ARCHS)
+    if any(a not in ARCHS for a in archs):
+        print(__doc__); return 2
+    for arch in archs:
+        top, tarball = pack(argv[0], arch, native)
         (tarball.parent / f"{tarball.name}.sha256").unlink(missing_ok=True)
-        check(argv[0], arch, top, tarball)
+        check(argv[0], arch, top, tarball, native)
         seal(tarball)
     return 0
 

@@ -188,4 +188,5 @@ echo "== native rust: $T (on $HOST, $JOBS jobs; LLVM $NATIVE_LLVM)"
 # has it, lib/ keeps the driver alone.
 find "$DEST/usr/lib" -maxdepth 1 -name 'lib*.so' ! -name 'librustc_driver-*.so' -delete
 echo "== native rust done: $DEST"
+sh rust/tests/native-check.sh "$DEST" "$T"
 done

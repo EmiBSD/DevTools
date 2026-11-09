@@ -61,5 +61,5 @@ cve name:
 check: mirror-check
     python3 -I -m py_compile tools/upstream.py tools/mirror.py tools/cve.py tools/watch.py tools/crates.py tools/dist.py tools/lock.py
     python3 -I tools/crates.py rust
-    sh -n llvm/build/build.sh llvm/build/native.sh llvm/tests/native-check.sh rust/build/build.sh rust/build/native.sh rust/build/llvm-config-native.sh tools/release.sh
+    sh -n llvm/build/build.sh llvm/build/native.sh llvm/tests/native-check.sh rust/tests/native-check.sh rust/build/build.sh rust/build/native.sh rust/build/llvm-config-native.sh tools/release.sh
     python3 -I -m py_compile rust/build/emibsd-vendor.py
