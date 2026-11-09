@@ -108,3 +108,23 @@ The sysroots it links against (`EMIBSD_SYSROOT_ARM64`, `EMIBSD_SYSROOT_AMD64`), 
 pinned toolchain; on EmiBSD, the previous DevTools release), `llvm/`'s `llvm-config`, the
 submodules and crates `UPSTREAM.toml` pins; their licences checked by `tools/crates.py`
 against `docs/POLICIES.md` at every pin bump.
+
+## The native toolchain (T3b, D-0009, D-0010)
+
+`build/native.sh` (`just native rust [aarch64|x86_64]`), after `build.sh` and llvm/'s
+`just native llvm`: x.py with this machine as the build and `<arch>-emibsd-emibsd` as the host,
+targets the host and the architecture's kernel target; a stage 1 compiler for this machine, then
+the stage 2 compiler, rustdoc, cargo, clippy, rustfmt and rust-src for EmiBSD, installed with
+`DESTDIR` under prefix `/usr` into `target/rust/native-<triple>/root`. What differs from
+`build.sh`, each for its reason:
+
+| What | Why |
+|---|---|
+| its own copy of the source, `target/rust/native-src`, with `emibsd-vendor.py` run over the vendored crates | some 45 crates choose their code by `target_os` and know no `emibsd`; EmiBSD's libc presents OpenBSD's interface (D-0003), so `emibsd` joins every `openbsd` condition (sources, build scripts, `Cargo.toml` target tables), as patches 0003 and 0004 do by hand for std and its libc; the one exception is 0004's, libc's libexecinfo. build.sh's copy, which the cross toolchain builds from, is untouched |
+| `llvm-config` for the host is `llvm-config-native.sh` | the native tree's own runs only on EmiBSD; stage 1's, with its answers pointed at the native build tree (libraries, generated headers, host triple; `-lpthread -lm`, no macOS linker flags) |
+| `LLVM_USE_LIBCXX=1`, `CXXSTDLIB_<target>=c++` | rustc_llvm's and the cc crate's C++ library for a target they do not know: the system's libc++ (upstream's switches) |
+| `--target=<arch>-emibsd-emibsd8.0` last in the target's `CFLAGS`/`CXXFLAGS` | the cc crate passes Rust's name, without the OS version; clang's per-target directories (libc++'s `__config_site`) go by LLVM's triple |
+| `<TARGET>_OPENSSL_NO_VENDOR`, `_OPENSSL_DIR` the sysroot's `/usr`, `_OPENSSL_STATIC` | cargo's TLS is the system's LibreSSL, not OpenSSL built from source, which does not know the target; static while the sysroot carries only `libssl.a` |
+| openssl-sys told LibreSSL 4.4.x follows 4.3.x | it knows up to 4.3.x and the system's is 4.4.0; the bindings for 4.3 hold. Cargo never rebuilds an edited vendored crate, so what it built of it is removed |
+| the proc-macro libraries removed from `usr/lib` | built for the EmiBSD host and copied by the install beside the driver; they serve only to compile rustc |
+

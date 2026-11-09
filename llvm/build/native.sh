@@ -96,6 +96,9 @@ cmake -G Ninja -S "$SRC/llvm" -B "$B" \
     -DLLVM_INCLUDE_EXAMPLES=OFF -DLLVM_BUILD_UTILS=OFF -DCLANG_INCLUDE_TESTS=OFF
 [ -d "$DEST" ] && chmod -R u+w "$DEST" && rm -rf "$DEST"
 DESTDIR="$DEST" ninja -C "$B" -j "$JOBS" install-distribution
+# Every LLVM library too, in the build tree only: rustc for this host links them (rust/'s
+# native build reads this tree through a llvm-config that runs here), as build.sh's `all`.
+ninja -C "$B" -j "$JOBS" llvm-libraries
 
 # The target's runtimes, from build.sh's install, where the installed system has them.
 RES=$DEST/usr/lib/clang/$MAJOR
