@@ -94,6 +94,11 @@ def manifest(name, toml, version, host, arch, targets, epoch):
              f"commit: {run('git', 'rev-parse', 'HEAD', cwd=ROOT)}", f"tag: {tag}",
              f"date: {datetime.fromtimestamp(epoch, timezone.utc).isoformat()}",
              f"upstream: {up['origin']} {up.get('tag') or up.get('commit')} ({up['commit']}) via {up['repo']}"]
+    # The sysroot the build took for this architecture: its pin when tools/sysroot.sh made it
+    # from a released userland artifact, else only that it was given by path.
+    var = os.environ.get({"arm64": "EMIBSD_SYSROOT_ARM64", "amd64": "EMIBSD_SYSROOT_AMD64"}[arch], "")
+    pin = Path(var) / ".pin" if var else None
+    lines.append(f"sysroot: {pin.read_text().strip() if pin and pin.is_file() else 'given by path, not pinned'}")
     for sm in toml.get("submodules", []):
         lines.append(f"submodule: {sm['path']} {sm['commit']} via {sm['repo']}")
     for p in toml.get("patches", {}).get("series", []):

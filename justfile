@@ -41,6 +41,10 @@ build name:
 native name *archs:
     python3 -I tools/upstream.py check {{name}} && python3 -I tools/lock.py /tmp/emibsd/ci.lock sh {{name}}/build/native.sh {{archs}}
 
+# The sysroot by pin: a released userland artifact already on this machine, checked against its sum, unpacked to target/sysroot/<arch>.
+sysroot arch artifact sum:
+    sh tools/sysroot.sh {{arch}} {{artifact}} {{sum}}
+
 # The artifact of a built toolchain: dist/<name>-<version>-<host>.tar.zst and .sha256, then checked unpacked elsewhere.
 dist name:
     python3 -I tools/dist.py {{name}}
@@ -61,5 +65,5 @@ cve name:
 check: mirror-check
     python3 -I -m py_compile tools/upstream.py tools/mirror.py tools/cve.py tools/watch.py tools/crates.py tools/dist.py tools/lock.py
     python3 -I tools/crates.py rust
-    sh -n llvm/build/build.sh llvm/build/native.sh llvm/tests/native-check.sh rust/tests/native-check.sh rust/build/build.sh rust/build/native.sh rust/build/llvm-config-native.sh tools/release.sh
+    sh -n tools/sysroot.sh llvm/build/build.sh llvm/build/native.sh llvm/tests/native-check.sh rust/tests/native-check.sh rust/build/build.sh rust/build/native.sh rust/build/llvm-config-native.sh tools/release.sh
     python3 -I -m py_compile rust/build/emibsd-vendor.py

@@ -62,7 +62,7 @@ our patch series (decision D-0004): LLVM's in `llvm/patches/`, Rust's in `rust/p
 
 | Variable | Meaning | Default |
 |---|---|---|
-| `EMIBSD_SYSROOT_ARM64`, `EMIBSD_SYSROOT_AMD64` | each architecture's libc, crt, headers, for LLVM's stage 2 and for linking Rust programs: a directory given by path, produced by the userland repository (until it exists, the base sets the kernel boots) | none: the build refuses to guess |
+| `EMIBSD_SYSROOT_ARM64`, `EMIBSD_SYSROOT_AMD64` | each architecture's libc, crt, headers and the system's libraries, static and shared, for LLVM's stage 2, for the native toolchains and for linking Rust programs: a directory, produced by the userland repository. By pin: `just sysroot <arch> <artifact> <sha256>` unpacks `usr/include`, `usr/lib` and `usr/libexec` of the base and comp sets of a released userland artifact into `target/sysroot/<arch>` and records the pin, which the artifacts' `MANIFEST` then names; by path until an architecture has a release (amd64: the base sets the kernel boots) | none: the build refuses to guess |
 | `COMP_JOBS` | parallel jobs | 6 |
 | `SOURCE_DATE_EPOCH` | the commit's time, for reproducible archives | set by the justfile |
 
