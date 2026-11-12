@@ -126,12 +126,16 @@ that path), with `nm`,
 `objdump`, `strip`, `ranlib`, `readelf`, `size`, `strings`, `objcopy`, `addr2line` and `c++filt`
 to their LLVM tools (the maintainer, 2026-11-09 and 2026-11-11), so the base system's own
 versions can go; the builtins also as `usr/lib/libcompiler_rt.a`, the name the system links; and
-`ld.lld.1`, the one manual page LLVM ships ready (the others are built with Sphinx, not installed
-here). Against the base system's lists the tree deliberately lacks: a shared `libLLVM` and LLVM's
+the manual pages (`build/man.sh`): `clang.1` and the `llvm-*` pages, rendered from the patched
+source's command guide by Sphinx's man builder, lld's own `ld.lld.1`, and the same pages under
+the system's names as links (`cc.1`, `ar.1`, `ld.1`...). Sphinx is a host tool, the user's
+install. `build/man/conf.py` is ours, for the manual pages alone: upstream's `docs/conf.py`
+builds the whole documentation and imports a helper from `llvm-project/utils/docs`, which is not
+among the fetched paths; it lists the pages as upstream's does, so the pages' text is the same. Against the base system's lists the tree deliberately lacks: a shared `libLLVM` and LLVM's
 headers and `llvm-config` (the tools are static against LLVM, D-0010, and the development kit is
 not shipped), the profiled `_p` archives (D-0010), `lldb` (its source is not among the paths
 fetched, and upstream has no native-process support for the OpenBSD interface: a decision of its
-own), and the manual pages that need Sphinx, which are a step of their own. The tools link
+own). `clang-scan-deps` has no manual page upstream. The tools link
 dynamically against the system's libc and `libc++.so.13.0`, LLVM's libraries static inside each
 (D-0010); no rpath (`CMAKE_SKIP_RPATH`); zlib, zstd, libxml2, libedit, libpfm and libffi off,
 none being a shared library of the system's in the sysroot yet. `tests/native-check.sh` checks

@@ -37,7 +37,8 @@ major=$("$tools/clang" -dumpversion | cut -d. -f1)
 
 for f in usr/bin/clang usr/bin/clang-scan-deps usr/bin/ld.lld usr/bin/llvm-ar usr/bin/llvm-nm usr/bin/llvm-objdump usr/bin/llvm-readelf \
          usr/lib/libc++.a usr/lib/libc++abi.a usr/lib/libc++.so.13.0 usr/lib/libc++abi.so.10.0 \
-         usr/lib/libcompiler_rt.a usr/share/man/man1/ld.lld.1 \
+         usr/lib/libcompiler_rt.a usr/share/man/man1/ld.lld.1 usr/share/man/man1/clang.1 \
+         usr/share/man/man1/llvm-ar.1 usr/share/man/man1/llvm-objdump.1 usr/share/man/man1/llvm-profdata.1 \
          usr/include/c++/v1/vector usr/include/c++/v1/__config_site \
          usr/lib/clang/$major/include/stddef.h usr/lib/clang/$major/lib/$triple/libclang_rt.builtins.a \
          usr/lib/clang/$major/lib/$triple/libclang_rt.profile.a usr/lib/clang/$major/lib/$triple/libclang_rt.ubsan_minimal.a; do
@@ -49,6 +50,11 @@ for l in cc:clang c++:clang++ cpp:clang ld:ld.lld ar:llvm-ar nm:llvm-nm objdump:
     n=${l%%:*}; want=${l#*:}
     [ "$(readlink "$root/usr/bin/$n" 2>/dev/null)" = "$want" ] || bad "usr/bin/$n is not a link to $want"
 done
+for l in cc:clang c++:clang cpp:clang ar:llvm-ar nm:llvm-nm strip:llvm-strip c++filt:llvm-cxxfilt ld:ld.lld; do
+    n=${l%%:*}; want=${l#*:}.1
+    [ "$(readlink "$root/usr/share/man/man1/$n.1" 2>/dev/null)" = "$want" ] || bad "usr/share/man/man1/$n.1 is not a link to $want"
+done
+grep -q '^\.TH "CLANG" "1"' "$root/usr/share/man/man1/clang.1" 2>/dev/null || bad "usr/share/man/man1/clang.1 is not a manual page"
 for f in libunwind.a libunwind.so libc++.so libc++abi.so; do
     [ -e "$root/usr/lib/$f" ] && bad "usr/lib/$f: the runtimes go by the system's names, the unwinder inside libc++abi"
 done
