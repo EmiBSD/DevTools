@@ -186,6 +186,15 @@ V=$(echo "$T" | tr a-z- A-Z_)
 if ls "$sysroot"/usr/lib/libssl.so.* >/dev/null 2>&1; then ssl_static=0; else ssl_static=1; fi
 export "${V}_OPENSSL_NO_VENDOR=1" "${V}_OPENSSL_DIR=$sysroot/usr" "${V}_OPENSSL_STATIC=$ssl_static"
 
+# rust.strip has rustc strip what it links, and for this machine's own objects (the stage 1
+# compiler's std, which the build scripts and proc macros link) rustc runs `rust-objcopy`.
+# Bootstrap puts that program in the compiler's sysroot only with llvm-tools on, and they are
+# off here: the native tree's tools do not run on this machine. It is llvm-objcopy under
+# another name, so stage 1's is given under that name on PATH, where rustc looks next.
+mkdir -p "$OUT/host-tools"
+ln -sf "$LLVM/bin/llvm-objcopy" "$OUT/host-tools/rust-objcopy"
+PATH="$ROOT/$OUT/host-tools:$PATH"
+export PATH
 echo "== native rust: $T (on $HOST, $JOBS jobs; LLVM $NATIVE_LLVM)"
 [ -d "$DEST" ] && chmod -R u+w "$DEST" && rm -rf "$DEST"
 (cd "$NSRC" && DESTDIR="$DEST" python3 x.py install --config "$ROOT/$OUT/config.toml" --build-dir "$ROOT/$OUT/build")
