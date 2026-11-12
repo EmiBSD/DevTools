@@ -120,8 +120,15 @@ copied where the installed system has them (`usr/lib`, `usr/lib/clang/<major>`,
 `usr/include/c++/v1` with `__config_site`) and `cc`, `c++`, `cpp`, `ld`, `ar` as links (`cpp`
 is clang in its preprocessor mode, taken from the name; the base system runs `/usr/bin/cpp` by
 that path), with `nm`,
-`objdump`, `strip`, `ranlib`, `readelf`, `size`, `strings`, `objcopy` to their LLVM tools (the
-maintainer, 2026-11-09), so the base system's own versions can go. The tools link
+`objdump`, `strip`, `ranlib`, `readelf`, `size`, `strings`, `objcopy`, `addr2line` and `c++filt`
+to their LLVM tools (the maintainer, 2026-11-09 and 2026-11-11), so the base system's own
+versions can go; the builtins also as `usr/lib/libcompiler_rt.a`, the name the system links; and
+`ld.lld.1`, the one manual page LLVM ships ready (the others are built with Sphinx, not installed
+here). Against the base system's lists the tree deliberately lacks: a shared `libLLVM` and LLVM's
+headers and `llvm-config` (the tools are static against LLVM, D-0010, and the development kit is
+not shipped), the profiled `_p` archives (D-0010), and, until the maintainer decides them,
+`lldb`, `clang-scan-deps`, compiler-rt's `profile` and `ubsan_minimal` runtimes and the manual
+pages that need Sphinx. The tools link
 dynamically against the system's libc and `libc++.so.13.0`, LLVM's libraries static inside each
 (D-0010); no rpath (`CMAKE_SKIP_RPATH`); zlib, zstd, libxml2, libedit, libpfm and libffi off,
 none being a shared library of the system's in the sysroot yet. `tests/native-check.sh` checks

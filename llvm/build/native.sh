@@ -28,7 +28,9 @@
 #   usr/bin                  clang, clang++, clang-cpp, ld.lld, the llvm-* binutils;
 #                            cc, c++, cpp, ld, ar and the binutils' names as links (the system's)
 #   usr/lib/clang/<major>    clang's resource directory: its headers, the builtins
-#   usr/lib                  libc++, libc++abi (the unwinder inside), static and shared
+#   usr/lib                  libc++, libc++abi (the unwinder inside), static and shared;
+#                            libcompiler_rt.a, the builtins under the system's name
+#   usr/share/man/man1       ld.lld.1
 #   usr/include/c++/v1       libc++'s headers, __config_site among them
 # The tools link dynamically against the system's libc and libc++ (libc++.so.13.0); LLVM's own
 # libraries are static inside each, as upstream links them (D-0010). No rpath.
@@ -115,9 +117,15 @@ ln -sf clang "$DEST/usr/bin/cc"
 ln -sf clang++ "$DEST/usr/bin/c++"
 ln -sf clang "$DEST/usr/bin/cpp"            # clang's driver takes the preprocessor mode from the name
 ln -sf ld.lld "$DEST/usr/bin/ld"
-for t in ar nm objdump strip ranlib readelf size strings objcopy; do
+for t in ar nm objdump strip ranlib readelf size strings objcopy addr2line; do
     ln -sf llvm-$t "$DEST/usr/bin/$t"
 done
+ln -sf llvm-cxxfilt "$DEST/usr/bin/c++filt"
+# The builtins under the system's name too, which its libraries and programs link as
+# -lcompiler_rt; and lld's manual page, the one LLVM ships ready (the others need Sphinx).
+cp "$PREFIX/lib/clang/$MAJOR/lib/$T/libclang_rt.builtins.a" "$DEST/usr/lib/libcompiler_rt.a"
+mkdir -p "$DEST/usr/share/man/man1"
+cp "$SRC/lld/docs/ld.lld.1" "$DEST/usr/share/man/man1/ld.lld.1"
 echo "== native done: $DEST"
 sh llvm/tests/native-check.sh "$DEST" "$T"
 done

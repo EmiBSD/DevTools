@@ -37,12 +37,14 @@ major=$("$tools/clang" -dumpversion | cut -d. -f1)
 
 for f in usr/bin/clang usr/bin/ld.lld usr/bin/llvm-ar usr/bin/llvm-nm usr/bin/llvm-objdump usr/bin/llvm-readelf \
          usr/lib/libc++.a usr/lib/libc++abi.a usr/lib/libc++.so.13.0 usr/lib/libc++abi.so.10.0 \
+         usr/lib/libcompiler_rt.a usr/share/man/man1/ld.lld.1 \
          usr/include/c++/v1/vector usr/include/c++/v1/__config_site \
          usr/lib/clang/$major/include/stddef.h usr/lib/clang/$major/lib/$triple/libclang_rt.builtins.a; do
     [ -f "$root/$f" ] || bad "missing $f"
 done
 for l in cc:clang c++:clang++ cpp:clang ld:ld.lld ar:llvm-ar nm:llvm-nm objdump:llvm-objdump strip:llvm-strip ranlib:llvm-ranlib \
-         readelf:llvm-readelf size:llvm-size strings:llvm-strings objcopy:llvm-objcopy clang++:clang clang-cpp:clang; do
+         readelf:llvm-readelf size:llvm-size strings:llvm-strings objcopy:llvm-objcopy addr2line:llvm-addr2line \
+         c++filt:llvm-cxxfilt clang++:clang clang-cpp:clang; do
     n=${l%%:*}; want=${l#*:}
     [ "$(readlink "$root/usr/bin/$n" 2>/dev/null)" = "$want" ] || bad "usr/bin/$n is not a link to $want"
 done
