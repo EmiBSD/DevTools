@@ -18,7 +18,7 @@ fail=0
 bad() { echo "check.sh: $*" >&2; fail=1; }
 cc="$prefix/bin/clang"
 readelf="$prefix/bin/llvm-readelf"
-for p in bin/clang bin/clang++ bin/clang-cpp bin/ld.lld bin/llvm-ar bin/llvm-ranlib bin/llvm-nm bin/llvm-objcopy \
+for p in bin/clang bin/clang++ bin/clang-cpp bin/clang-scan-deps bin/ld.lld bin/llvm-ar bin/llvm-ranlib bin/llvm-nm bin/llvm-objcopy \
          bin/llvm-objdump bin/llvm-readobj bin/llvm-readelf bin/llvm-strip bin/llvm-size bin/llvm-strings \
          bin/llvm-symbolizer bin/llvm-addr2line bin/llvm-cxxfilt bin/llvm-dwarfdump bin/llvm-cov bin/llvm-profdata; do
     [ -x "$prefix/$p" ] || bad "missing $p"
@@ -79,7 +79,8 @@ for arch in $archs; do
     # The runtimes for the target, where the driver looks for them.
     for f in lib/$triple/libc++.a lib/$triple/libc++abi.a lib/$triple/libc++.so.13.0 lib/$triple/libc++abi.so.10.0 \
              include/$triple/c++/v1/__config_site include/c++/v1/vector \
-             lib/clang/$major/include/stddef.h lib/clang/$major/lib/$triple/libclang_rt.builtins.a; do
+             lib/clang/$major/include/stddef.h lib/clang/$major/lib/$triple/libclang_rt.builtins.a \
+             lib/clang/$major/lib/$triple/libclang_rt.profile.a lib/clang/$major/lib/$triple/libclang_rt.ubsan_minimal.a; do
         [ -f "$prefix/$f" ] || bad "missing $f ($triple)"
     done
 
@@ -136,6 +137,20 @@ for arch in $archs; do
         "$readelf" -d "$tmp/xd-$arch" | grep -q 'NEEDED.*\[libc++.so.13.0\]' || bad "$arch xd: libc++.so.13.0 is not NEEDED"
     else
         bad "$arch: x.cpp did not link dynamically: $(head -8 "$tmp/xd-$arch.err")"
+    fi
+
+    # compiler-rt's profile and ubsan_minimal runtimes link (patch 0010): the profile sections
+    # and the minimal handlers are in the program.
+    if "$cc" --sysroot="$sysroot" -static -O1 -fprofile-instr-generate -fcoverage-mapping -o "$tmp/p-$arch" "$tmp/h.c" 2> "$tmp/p-$arch.err"; then
+        "$readelf" -SW "$tmp/p-$arch" | grep -q '__llvm_prf_cnts' || bad "$arch p: no profile counters section"
+        "$prefix/bin/llvm-nm" "$tmp/p-$arch" | grep -q '__llvm_profile_write_file' || bad "$arch p: the profile runtime was not linked in"
+    else
+        bad "$arch: h.c did not link with -fprofile-instr-generate: $(head -5 "$tmp/p-$arch.err")"
+    fi
+    if "$cc" --sysroot="$sysroot" -static -O1 -fsanitize=undefined -fsanitize-minimal-runtime -o "$tmp/u-$arch" "$tmp/h.c" 2> "$tmp/u-$arch.err"; then
+        "$prefix/bin/llvm-nm" "$tmp/u-$arch" | grep -q '__ubsan_handle_.*_minimal' || bad "$arch u: the minimal ubsan runtime was not linked in"
+    else
+        bad "$arch: h.c did not link with -fsanitize-minimal-runtime: $(head -5 "$tmp/u-$arch.err")"
     fi
 
     # The driver links with the system's link defaults (patch 0007).

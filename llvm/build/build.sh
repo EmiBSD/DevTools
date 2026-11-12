@@ -15,7 +15,8 @@
 # 3. For each target triple, target/llvm/builtins-<triple>, then target/llvm/runtimes-<triple>,
 #    installed under the same prefix in lib/clang/<major>/lib/<triple>/, lib/<triple>/ and
 #    include/<triple>/: compiler-rt's builtins first, then libunwind, libc++abi and libc++,
-#    compiled by stage 1's clang against that architecture's sysroot (its libc, crt, headers).
+#    compiled by stage 1's clang against that architecture's sysroot (its libc, crt, headers);
+#    then target/llvm/rt-<triple>, compiler-rt's profile and ubsan_minimal runtimes.
 # 4. tests/check.sh over the result.
 #
 # Nothing of OpenBSD is read. Never touches upstream/.
@@ -49,7 +50,7 @@ PREFIX=$ROOT/$OUT/$HOST
 # What the install carries (LLVM_DISTRIBUTION_COMPONENTS, DESIGN.md): the compiler and its
 # builtin headers, the linker (ld.lld comes with lld), and the binutils a system build uses;
 # the symlinked names (ranlib, strip, readelf, addr2line) are components of their own.
-DISTRIBUTION="clang;clang-resource-headers;lld;llvm-ar;llvm-ranlib;llvm-nm;llvm-objcopy;llvm-strip;llvm-objdump;llvm-readobj;llvm-readelf;llvm-size;llvm-strings;llvm-symbolizer;llvm-addr2line;llvm-cxxfilt;llvm-dwarfdump;llvm-cov;llvm-profdata"
+DISTRIBUTION="clang;clang-resource-headers;clang-scan-deps;lld;llvm-ar;llvm-ranlib;llvm-nm;llvm-objcopy;llvm-strip;llvm-objdump;llvm-readobj;llvm-readelf;llvm-size;llvm-strings;llvm-symbolizer;llvm-addr2line;llvm-cxxfilt;llvm-dwarfdump;llvm-cov;llvm-profdata"
 
 # 1. The source copy, patched.
 series=$(python3 -I -c 'import sys,tomllib; print(" ".join(tomllib.load(open(sys.argv[1],"rb"))["patches"]["series"]))' llvm/UPSTREAM.toml)
@@ -156,6 +157,36 @@ ninja -C "$OUT/runtimes-$T" -j "$JOBS" install
 # links CMake installs beside libc++.so.13.0 and libc++abi.so.10.0 are not the system's; and
 # no libunwind of its own, though an install made before D-0010 left one in the prefix.
 rm -f "$PREFIX/lib/$T/libc++.so" "$PREFIX/lib/$T/libc++abi.so" "$PREFIX/lib/$T"/libunwind.*
+
+# 2c: the two compiler-rt runtimes the base system's compiler set carries beside the builtins
+# (patch 0010): profile, for -fprofile-instr-generate and coverage, and ubsan_minimal, for
+# -fsanitize-minimal-runtime; static only, as the system has them. No other sanitizer, no
+# xray, no fuzzer. They install beside the builtins, in lib/clang/<major>/lib/<triple>/.
+echo "== stage 2c: compiler-rt profile and ubsan_minimal ($T)"
+cmake -G Ninja -S "$SRC/compiler-rt" -B "$OUT/rt-$T" \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_MODULE_PATH="$ROOT/llvm/build/cmake" \
+    -DCMAKE_SYSTEM_NAME=EmiBSD -DCMAKE_SYSTEM_PROCESSOR=$ARCH \
+    -DCMAKE_INSTALL_PREFIX="$PREFIX" \
+    -DCMAKE_C_COMPILER="$PREFIX/bin/clang" -DCMAKE_CXX_COMPILER="$PREFIX/bin/clang++" \
+    -DCMAKE_ASM_COMPILER="$PREFIX/bin/clang" \
+    -DCMAKE_C_COMPILER_TARGET="$T" -DCMAKE_CXX_COMPILER_TARGET="$T" \
+    -DCMAKE_ASM_COMPILER_TARGET="$T" \
+    -DCMAKE_AR="$PREFIX/bin/llvm-ar" -DCMAKE_RANLIB="$PREFIX/bin/llvm-ranlib" \
+    -DCMAKE_SYSROOT="$SYSROOT" \
+    -DLLVM_CMAKE_DIR="$ROOT/$OUT/host" \
+    -DLLVM_LIBRARY_OUTPUT_INTDIR="$ROOT/$OUT/host/lib" -DLLVM_RUNTIME_OUTPUT_INTDIR="$ROOT/$OUT/host/bin" \
+    -DPACKAGE_VERSION="$VERSION" \
+    -DLLVM_DEFAULT_TARGET_TRIPLE="$T" \
+    -DLLVM_ENABLE_PER_TARGET_RUNTIME_DIR=ON \
+    -DCOMPILER_RT_DEFAULT_TARGET_ONLY=ON -DCOMPILER_RT_USE_BUILTINS_LIBRARY=ON \
+    -DCOMPILER_RT_BUILD_BUILTINS=OFF -DCOMPILER_RT_BUILD_PROFILE=ON \
+    -DCOMPILER_RT_BUILD_SANITIZERS=ON -DCOMPILER_RT_SANITIZERS_TO_BUILD=ubsan_minimal \
+    -DCOMPILER_RT_BUILD_XRAY=OFF -DCOMPILER_RT_BUILD_LIBFUZZER=OFF -DCOMPILER_RT_BUILD_MEMPROF=OFF \
+    -DCOMPILER_RT_BUILD_ORC=OFF -DCOMPILER_RT_BUILD_CTX_PROFILE=OFF -DCOMPILER_RT_BUILD_GWP_ASAN=OFF \
+    -DCOMPILER_RT_INCLUDE_TESTS=OFF
+ninja -C "$OUT/rt-$T" -j "$JOBS" install
+rm -f "$PREFIX/lib/clang/${VERSION%%.*}/lib/$T"/libclang_rt.*.so
 done
 echo "== done: $PREFIX"
 sh llvm/tests/check.sh "$PREFIX"

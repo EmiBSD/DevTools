@@ -29,8 +29,10 @@
    compiler, system, sysroot and triple, static libraries only, `LIBCXX_USE_COMPILER_RT=ON`,
    `LIBCXXABI_USE_LLVM_UNWINDER=ON`; installed under `lib/<triple>/` and
    `include/<triple>/` (`LLVM_ENABLE_PER_TARGET_RUNTIME_DIR`), where the driver
-   looks for them. No sanitizer, xray, fuzzer or profile runtime: only the builtins of
-   compiler-rt are built.
+   looks for them. **2c**: `cmake -S target/llvm/src/compiler-rt -B target/llvm/rt-<triple>`
+   for the two compiler-rt runtimes the base system's compiler set carries beside the
+   builtins, `profile` and `ubsan_minimal` (patch 0010), static, installed beside the
+   builtins. No other sanitizer, no xray, no fuzzer.
 3. **`tests/check.sh`** over the install tree: the compiler's identity and macros, the
    runtimes in place, a C program linked static PIE and dynamic, a C++ program over libc++;
    the ELF each must be (`DESIGN.md` of the kernel's loader, in a word: PIE, OS/ABI byte 12,
@@ -52,9 +54,9 @@ Flags that differ from upstream's defaults, with the reason:
 | `LIBCXX_ENABLE_SHARED`, `LIBCXXABI_ENABLE_SHARED` | `ON` | the base system carries the shared C++ runtime, `libc++.so.13.0` and `libc++abi.so.10.0` (D-0010, names by patch 0008); the native tools link against it. The unversioned `.so` links CMake installs are removed, so `-lc++` takes the versioned library (patch 0005) and a static link the `.a` |
 | `LIBCXXABI_ENABLE_STATIC_UNWINDER`, `LIBCXXABI_STATICALLY_LINK_UNWINDER_IN_SHARED_LIBRARY`, `..._IN_STATIC_LIBRARY`; `LIBUNWIND_ENABLE_SHARED`, `LIBUNWIND_INSTALL_LIBRARY` | `ON`, `ON`, `ON`; `OFF`, `OFF` | the unwinder lives inside libc++abi, shared and static, as the base system's lists expect (D-0010); libunwind is built only to be merged, and not installed on its own; the first option is the one the other two depend on in upstream's CMake |
 | `LLVM_TARGETS_TO_BUILD` | `AArch64;X86` | arm64 and amd64 (decision D-0008); nothing else |
-| `COMPILER_RT_BUILD_*` | sanitizers, xray, fuzzer, profile off | only the builtins and the runtimes the system links |
+| `COMPILER_RT_BUILD_*` (stage 2c) | `PROFILE` on, `SANITIZERS` on with `COMPILER_RT_SANITIZERS_TO_BUILD=ubsan_minimal`; xray, fuzzer, memprof, orc, ctx_profile, gwp_asan off; the shared `ubsan_minimal` removed | the builtins and the two runtimes the base system's compiler set carries (`-fprofile-instr-generate`, `-fsanitize-minimal-runtime`), static as it has them; the full sanitizers need a port of sanitizer_common to the system, which is not claimed |
 | `LLVM_ENABLE_ASSERTIONS` | `OFF` | a release compiler; assertions are for developing LLVM |
-| `LLVM_DISTRIBUTION_COMPONENTS` | clang and its resource headers, lld, `llvm-ar`, `llvm-ranlib`, `llvm-nm`, `llvm-objcopy`, `llvm-strip`, `llvm-objdump`, `llvm-readobj`, `llvm-readelf`, `llvm-size`, `llvm-strings`, `llvm-symbolizer`, `llvm-addr2line`, `llvm-cxxfilt`, `llvm-dwarfdump`, `llvm-cov`, `llvm-profdata` (`DISTRIBUTION` in `build.sh`) | a plain `install` is LLVM's development kit: 131 programs (`llc`, `opt`, `clang-repl`, the GPU wrappers, `bugpoint`...), the LLVM and clang static libraries and headers, 2.2 GB, each tool linked statically against LLVM as upstream links them; `LLVM_DISTRIBUTION_COMPONENTS` is the mechanism upstream gives a system that ships LLVM (its `clang/cmake/caches/` are examples), and the list is what a system build uses: the compiler, the linker and the binutils, about 300 MB, the same binaries linked the same way; nothing is built differently. rustc's build reads the build tree. The tools stay statically linked against LLVM: a toolchain that depends on a shared `libLLVM` breaks with it |
+| `LLVM_DISTRIBUTION_COMPONENTS` | clang and its resource headers, `clang-scan-deps` (the base system's compiler set carries it), lld, `llvm-ar`, `llvm-ranlib`, `llvm-nm`, `llvm-objcopy`, `llvm-strip`, `llvm-objdump`, `llvm-readobj`, `llvm-readelf`, `llvm-size`, `llvm-strings`, `llvm-symbolizer`, `llvm-addr2line`, `llvm-cxxfilt`, `llvm-dwarfdump`, `llvm-cov`, `llvm-profdata` (`DISTRIBUTION` in `build.sh`) | a plain `install` is LLVM's development kit: 131 programs (`llc`, `opt`, `clang-repl`, the GPU wrappers, `bugpoint`...), the LLVM and clang static libraries and headers, 2.2 GB, each tool linked statically against LLVM as upstream links them; `LLVM_DISTRIBUTION_COMPONENTS` is the mechanism upstream gives a system that ships LLVM (its `clang/cmake/caches/` are examples), and the list is what a system build uses: the compiler, the linker and the binutils, about 300 MB, the same binaries linked the same way; nothing is built differently. rustc's build reads the build tree. The tools stay statically linked against LLVM: a toolchain that depends on a shared `libLLVM` breaks with it |
 
 Everything else is upstream's default.
 
@@ -76,6 +78,7 @@ upstream when it is stable.
 | `0007-clang-driver-emibsd-link-defaults` | every link the driver makes passes `--undefined-version` and `--ignore-function-address-equality`, before the user's arguments: what the system's libraries are linked with (a version script naming a symbol the library lacks, protected symbols preemptible), which upstream lld does not default to; in the driver, so a direct `ld.lld` (the kernel's) is unchanged |
 | `0008-runtimes-emibsd-sonames` | libc++'s and libc++abi's shared libraries take the system's names and sonames, `libc++.so.13.0` and `libc++abi.so.10.0`, which its `ld.so` looks up and the base system's lists expect (D-0010); upstream names them after the ABI version, with no option for the name alone; the ABI namespace stays `__1` |
 | `0009-llvm-host-emibsd` | LLVM's support library and CMake learn EmiBSD as a host, as OpenBSD's interface (statfs, the executable's path from argv[0], no /proc, `getthrid`, `<pthread_np.h>`, `dl_iterate_phdr`, `<endian.h>`; no Mach, no `-z defs`): what the native toolchain needs to run there (T3b, D-0009); the macOS host build is unchanged |
+| `0010-compiler-rt-profile-ubsan-emibsd` | compiler-rt builds `profile` and `ubsan_minimal` for EmiBSD: the system joins the two lists of `config-ix.cmake`, the profile runtime's ELF platform file (the linker's `__start_`/`__stop_` section symbols, as LLVM emits profile data for ELF) and `sanitizer_platform.h`'s list of known systems, which `ubsan_minimal` includes for its macros only |
 
 Defaults the driver turns on for the target, which change what the compiler emits, each a
 decision of this repository (D-0004) and reversible here:
@@ -126,9 +129,9 @@ versions can go; the builtins also as `usr/lib/libcompiler_rt.a`, the name the s
 `ld.lld.1`, the one manual page LLVM ships ready (the others are built with Sphinx, not installed
 here). Against the base system's lists the tree deliberately lacks: a shared `libLLVM` and LLVM's
 headers and `llvm-config` (the tools are static against LLVM, D-0010, and the development kit is
-not shipped), the profiled `_p` archives (D-0010), and, until the maintainer decides them,
-`lldb`, `clang-scan-deps`, compiler-rt's `profile` and `ubsan_minimal` runtimes and the manual
-pages that need Sphinx. The tools link
+not shipped), the profiled `_p` archives (D-0010), `lldb` (its source is not among the paths
+fetched, and upstream has no native-process support for the OpenBSD interface: a decision of its
+own), and the manual pages that need Sphinx, which are a step of their own. The tools link
 dynamically against the system's libc and `libc++.so.13.0`, LLVM's libraries static inside each
 (D-0010); no rpath (`CMAKE_SKIP_RPATH`); zlib, zstd, libxml2, libedit, libpfm and libffi off,
 none being a shared library of the system's in the sysroot yet. `tests/native-check.sh` checks

@@ -1,0 +1,67 @@
+compiler-rt: the profile and ubsan_minimal runtimes on EmiBSD
+
+Why a patch: the base system's compiler set carries libclang_rt.profile.a and
+libclang_rt.ubsan_minimal.a (coverage and profiling with
+-fprofile-instr-generate, and -fsanitize-minimal-runtime), and the driver
+already links them; compiler-rt's CMake builds each only for the systems it
+lists, and its sources pick their platform code by macro. EmiBSD joins the
+two lists of config-ix.cmake; the profile runtime's ELF platform file, the
+one that reads the linker's __start_ and __stop_ section symbols, which is
+how LLVM emits profile data for every ELF target, and leaves the fallback
+file; and sanitizer_platform.h's list of known systems, which
+ubsan_minimal's one source includes for its macros only. No other sanitizer
+is built or claimed. Written by EmiBSD (ISC); carried by DevTools over the
+pinned tag. Author: Emilio Navarrete Lineros, 2026-11-11.
+
+--- a/compiler-rt/cmake/config-ix.cmake
++++ b/compiler-rt/cmake/config-ix.cmake
+@@ -847,7 +847,7 @@
+ endif()
+ 
+ if (PROFILE_SUPPORTED_ARCH AND NOT LLVM_USE_SANITIZER AND
+-    (OS_NAME MATCHES "Darwin|Linux|FreeBSD|Windows|Android|Fuchsia|SunOS|NetBSD|AIX|WASI|Haiku" OR COMPILER_RT_PROFILE_BAREMETAL))
++    (OS_NAME MATCHES "Darwin|Linux|FreeBSD|Windows|Android|Fuchsia|SunOS|NetBSD|AIX|WASI|Haiku|EmiBSD" OR COMPILER_RT_PROFILE_BAREMETAL))
+   set(COMPILER_RT_HAS_PROFILE TRUE)
+ else()
+   set(COMPILER_RT_HAS_PROFILE FALSE)
+@@ -894,7 +894,7 @@
+ endif()
+ 
+ if (UBSAN_SUPPORTED_ARCH AND
+-    (OS_NAME MATCHES "Linux|FreeBSD|NetBSD|Android|Darwin|SunOS" OR
++    (OS_NAME MATCHES "Linux|FreeBSD|NetBSD|Android|Darwin|SunOS|EmiBSD" OR
+      COMPILER_RT_GPU_BUILD))
+   set(COMPILER_RT_HAS_UBSAN_MINIMAL TRUE)
+ else()
+--- a/compiler-rt/lib/profile/InstrProfilingPlatformLinux.c
++++ b/compiler-rt/lib/profile/InstrProfilingPlatformLinux.c
+@@ -23,6 +23,7 @@
+ #if defined(__linux__) || defined(__FreeBSD__) || defined(__Fuchsia__) ||      \
+     (defined(__sun__) && defined(__svr4__)) || defined(__NetBSD__) ||          \
+     defined(_AIX) || defined(__wasm__) || defined(__HAIKU__) ||                \
++    defined(__EmiBSD__) ||                                                     \
+     (defined(COMPILER_RT_PROFILE_BAREMETAL) && !defined(__NVPTX__))
+ 
+ #if !defined(_AIX) && !defined(__wasm__) &&                                    \
+--- a/compiler-rt/lib/profile/InstrProfilingPlatformOther.c
++++ b/compiler-rt/lib/profile/InstrProfilingPlatformOther.c
+@@ -16,7 +16,7 @@
+ #if (!defined(__APPLE__) && !defined(__linux__) && !defined(__FreeBSD__) &&    \
+      !defined(__Fuchsia__) && !(defined(__sun__) && defined(__svr4__)) &&      \
+      !defined(__NetBSD__) && !defined(_WIN32) && !defined(_AIX) &&             \
+-     !defined(__wasm__) && !defined(__HAIKU__) &&                              \
++     !defined(__wasm__) && !defined(__HAIKU__) && !defined(__EmiBSD__) &&      \
+      !defined(COMPILER_RT_PROFILE_BAREMETAL)) ||                               \
+     defined(__NVPTX__)
+ 
+--- a/compiler-rt/lib/sanitizer_common/sanitizer_platform.h
++++ b/compiler-rt/lib/sanitizer_common/sanitizer_platform.h
+@@ -16,7 +16,7 @@
+     !defined(__APPLE__) && !defined(_WIN32) && !defined(__Fuchsia__) &&     \
+     !(defined(__sun__) && defined(__svr4__)) && !defined(__HAIKU__) &&      \
+     !defined(__wasi__) && !defined(__NVPTX__) && !defined(__AMDGPU__) &&    \
+-    !defined(__SPIRV__) && !defined(_AIX)
++    !defined(__SPIRV__) && !defined(_AIX) && !defined(__EmiBSD__)
+ #  error "This operating system is not supported"
+ #endif
+ 

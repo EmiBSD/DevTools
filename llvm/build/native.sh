@@ -52,7 +52,7 @@ grep -q 'llvm-host-emibsd' "$SRC/.emibsd-src" \
 for t in cmake ninja python3; do command -v $t >/dev/null || { echo "native: $t not found (the user's install)" >&2; exit 1; }; done
 MAJOR=$("$PREFIX/bin/clang" -dumpversion | cut -d. -f1)
 # The same distribution as the cross toolchain's (build.sh, DESIGN.md).
-DISTRIBUTION="clang;clang-resource-headers;lld;llvm-ar;llvm-ranlib;llvm-nm;llvm-objcopy;llvm-strip;llvm-objdump;llvm-readobj;llvm-readelf;llvm-size;llvm-strings;llvm-symbolizer;llvm-addr2line;llvm-cxxfilt;llvm-dwarfdump;llvm-cov;llvm-profdata"
+DISTRIBUTION="clang;clang-resource-headers;clang-scan-deps;lld;llvm-ar;llvm-ranlib;llvm-nm;llvm-objcopy;llvm-strip;llvm-objdump;llvm-readobj;llvm-readelf;llvm-size;llvm-strings;llvm-symbolizer;llvm-addr2line;llvm-cxxfilt;llvm-dwarfdump;llvm-cov;llvm-profdata"
 
 ARCHS=${*:-aarch64 x86_64}
 for ARCH in $ARCHS; do
@@ -106,6 +106,11 @@ ninja -C "$B" -j "$JOBS" llvm-libraries
 RES=$DEST/usr/lib/clang/$MAJOR
 mkdir -p "$RES/lib/$T" "$DEST/usr/lib" "$DEST/usr/include/c++"
 cp -R "$PREFIX/lib/clang/$MAJOR/lib/$T/" "$RES/lib/$T/"
+# compiler-rt's own headers (profile, sanitizer), which its runtimes' install puts in the
+# cross toolchain's resource directory and clang's resource-headers component does not carry.
+for d in profile sanitizer; do
+    [ -d "$PREFIX/lib/clang/$MAJOR/include/$d" ] && cp -R "$PREFIX/lib/clang/$MAJOR/include/$d" "$RES/include/$d"
+done
 for f in libc++.a libc++abi.a libc++experimental.a libc++.so.13.0 libc++abi.so.10.0; do
     cp "$PREFIX/lib/$T/$f" "$DEST/usr/lib/$f"
 done

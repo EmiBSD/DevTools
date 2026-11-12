@@ -20,7 +20,7 @@ license = ["Apache-2.0 WITH LLVM-exception"]              # the families; the te
 cpe     = "llvm:llvm"            # NVD product, for tools/cve.py
 
 [patches]
-series  = ["0001-llvm-target-emibsd.patch", "0002-clang-target-emibsd.patch", "0003-clang-driver-emibsd.patch", "0004-runtimes-emibsd.patch", "0005-lld-versioned-shared-libs.patch", "0006-lld-emibsd-sections.patch", "0007-clang-driver-emibsd-link-defaults.patch", "0008-runtimes-emibsd-sonames.patch", "0009-llvm-host-emibsd.patch"]   # the EmiBSD target, written by us; each file says why; DESIGN.md
+series  = ["0001-llvm-target-emibsd.patch", "0002-clang-target-emibsd.patch", "0003-clang-driver-emibsd.patch", "0004-runtimes-emibsd.patch", "0005-lld-versioned-shared-libs.patch", "0006-lld-emibsd-sections.patch", "0007-clang-driver-emibsd-link-defaults.patch", "0008-runtimes-emibsd-sonames.patch", "0009-llvm-host-emibsd.patch", "0010-compiler-rt-profile-ubsan-emibsd.patch"]   # the EmiBSD target, written by us; each file says why; DESIGN.md
 
 [watch]                                   # tools/watch.py: where a newer release is announced; it reports, never bumps
 source  = "github-releases"               # llvm/llvm-project's releases (tag_name against `version` before "+")

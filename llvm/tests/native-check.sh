@@ -35,11 +35,12 @@ case $triple in
 esac
 major=$("$tools/clang" -dumpversion | cut -d. -f1)
 
-for f in usr/bin/clang usr/bin/ld.lld usr/bin/llvm-ar usr/bin/llvm-nm usr/bin/llvm-objdump usr/bin/llvm-readelf \
+for f in usr/bin/clang usr/bin/clang-scan-deps usr/bin/ld.lld usr/bin/llvm-ar usr/bin/llvm-nm usr/bin/llvm-objdump usr/bin/llvm-readelf \
          usr/lib/libc++.a usr/lib/libc++abi.a usr/lib/libc++.so.13.0 usr/lib/libc++abi.so.10.0 \
          usr/lib/libcompiler_rt.a usr/share/man/man1/ld.lld.1 \
          usr/include/c++/v1/vector usr/include/c++/v1/__config_site \
-         usr/lib/clang/$major/include/stddef.h usr/lib/clang/$major/lib/$triple/libclang_rt.builtins.a; do
+         usr/lib/clang/$major/include/stddef.h usr/lib/clang/$major/lib/$triple/libclang_rt.builtins.a \
+         usr/lib/clang/$major/lib/$triple/libclang_rt.profile.a usr/lib/clang/$major/lib/$triple/libclang_rt.ubsan_minimal.a; do
     [ -f "$root/$f" ] || bad "missing $f"
 done
 for l in cc:clang c++:clang++ cpp:clang ld:ld.lld ar:llvm-ar nm:llvm-nm objdump:llvm-objdump strip:llvm-strip ranlib:llvm-ranlib \
