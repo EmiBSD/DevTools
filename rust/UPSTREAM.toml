@@ -8,14 +8,14 @@ path    = ["/*", "!/compiler/rustc_codegen_gcc/"]   # the whole tree but the GCC
                                           # excluded from the root workspace upstream, built only when rust.codegen-backends names gcc
 commit  = "58cf8f9c35b355199727627d07ae34a4e2846d67"   # the commit tag 1.99.1 points to (213cfbe6 is the annotated tag object)
 tag     = "1.99.1"                 # resolved to a commit at fetch, recorded in upstream/.pin
-version = "1.99.1+emibsd.3"        # the upstream's version, plus our patch level (resets to 1 on a bump; the series is 0001 to 0004)
+version = "1.99.1+emibsd.4"        # the upstream's version, plus our patch level (resets to 1 on a bump; the series is 0001 to 0005)
 license = ["Apache-2.0", "MIT"]   # the families; the texts stay in the source
 
 [security]
 cpe     = "rust-lang:rust"            # NVD product, for tools/cve.py
 
 [patches]
-series  = ["0001-bootstrap-vendor-what-is-there.patch", "0002-rustc-target-emibsd.patch", "0003-std-emibsd.patch", "0004-libc-emibsd.patch"]   # in order; each with its reason; DESIGN.md
+series  = ["0001-bootstrap-vendor-what-is-there.patch", "0002-rustc-target-emibsd.patch", "0003-std-emibsd.patch", "0004-libc-emibsd.patch", "0005-std-current-exe-argv-length.patch"]   # in order; each with its reason; DESIGN.md
 
 # The rule of the pins: the stable release of Rust is the one pin chosen (`tag`); everything
 # else, the submodules and the crates, is pinned to what that release fixes (its .gitmodules,

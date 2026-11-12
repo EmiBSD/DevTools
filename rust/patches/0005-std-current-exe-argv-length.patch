@@ -1,0 +1,40 @@
+std: current_exe on OpenBSD and EmiBSD, whatever the length of argv
+
+Why a patch: std's current_exe for OpenBSD, which patch 0003 lets EmiBSD
+into, reads argv with sysctl(KERN_PROC_ARGS, KERN_PROC_ARGV) and divides
+the returned length by a pointer's size with div_exact().unwrap(). That
+length covers the pointer array and the strings the kernel stores after
+it (OpenBSD's ABI, which EmiBSD's kernel keeps), so it is rarely a
+multiple of a pointer's size, and the unwrap panics: cargo, rustc's
+driver and any program asking for its path stop. This sizes the buffer by
+rounding up, takes as many pointers as the length holds, and keeps them up
+to the null one that ends the array; only argv[0] is read, as before. The
+same code panics on OpenBSD: offered upstream. Found by the kernel
+repository running cargo on EmiBSD (2026-11-11). Written by EmiBSD (ISC)
+over upstream's text (Apache-2.0 OR MIT), carried by DevTools over the
+pinned tag. Author: Emilio Navarrete Lineros, 2026-11-11.
+
+--- a/library/std/src/sys/paths/unix.rs
++++ b/library/std/src/sys/paths/unix.rs
+@@ -240,13 +240,18 @@
+         cvt(libc::sysctl(mib, 4, ptr::null_mut(), &mut argv_size, ptr::null_mut(), 0))?;
+ 
+         // ... allocate a buffer for it ...
+-        let argc = argv_size.div_exact(size_of::<*const libc::c_char>()).unwrap();
++        let argc = argv_size.div_ceil(size_of::<*const libc::c_char>());
+         let mut argv = Vec::<*const libc::c_char>::with_capacity(argc);
+ 
+-        // ... and retrieve the argument array.
++        // ... and retrieve the argument array. The length the kernel returns covers the pointers
++        // and the strings stored after them, so it need not be a multiple of a pointer's size;
++        // only the pointers are read, up to the null one that ends them.
+         cvt(libc::sysctl(mib, 4, argv.as_mut_ptr() as *mut _, &mut argv_size, ptr::null_mut(), 0))?;
+-        let argc = argv_size.div_exact(size_of::<*const libc::c_char>()).unwrap();
++        let argc = argv_size / size_of::<*const libc::c_char>();
+         argv.set_len(argc);
++        if let Some(end) = argv.iter().position(|p| p.is_null()) {
++            argv.truncate(end + 1);
++        }
+ 
+         if argv[0].is_null() {
+             return Err(io::const_error!(io::ErrorKind::Uncategorized, "no current exe available"));
