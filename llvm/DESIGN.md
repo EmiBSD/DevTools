@@ -132,6 +132,9 @@ the system's names as links (`cc.1`, `ar.1`, `ld.1`...). Sphinx is a host tool, 
 install. `build/man/conf.py` is ours, for the manual pages alone: upstream's `docs/conf.py`
 builds the whole documentation and imports a helper from `llvm-project/utils/docs`, which is not
 among the fetched paths; it lists the pages as upstream's does, so the pages' text is the same.
+LLVM's build precompiles headers, and clang refuses a precompiled header made by another
+revision of itself; ninja does not see the compiler change, so `build/native.sh` removes the
+ones older than the stage-1 clang before it builds (a rebuild after a commit failed on them).
 The macOS-hosted tree carries the same pages in `share/man/man1` under the tools' own names
 (`clang.1`, `llvm-ar.1`, `ld.lld.1`), without the system's names, which are not its commands. Against the base system's lists the tree deliberately lacks: a shared `libLLVM` and LLVM's
 headers and `llvm-config` (the tools are static against LLVM, D-0010, and the development kit is

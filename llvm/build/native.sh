@@ -97,6 +97,10 @@ cmake -G Ninja -S "$SRC/llvm" -B "$B" \
     -DLLVM_INCLUDE_TESTS=OFF -DLLVM_INCLUDE_BENCHMARKS=OFF -DLLVM_INCLUDE_DOCS=OFF \
     -DLLVM_INCLUDE_EXAMPLES=OFF -DLLVM_BUILD_UTILS=OFF -DCLANG_INCLUDE_TESTS=OFF
 [ -d "$DEST" ] && chmod -R u+w "$DEST" && rm -rf "$DEST"
+# A precompiled header is the work of one build of the compiler: clang refuses one made by
+# another revision of itself, and ninja does not see the compiler change. Those not newer than
+# the stage-1 clang go, and what they serve is compiled again.
+find "$B" -name '*.pch' ! -newer "$PREFIX/bin/clang-$MAJOR" -delete
 DESTDIR="$DEST" ninja -C "$B" -j "$JOBS" install-distribution
 # Every LLVM library too, in the build tree only: rustc for this host links them (rust/'s
 # native build reads this tree through a llvm-config that runs here), as build.sh's `all`.
