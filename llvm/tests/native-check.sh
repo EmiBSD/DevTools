@@ -41,7 +41,7 @@ for f in usr/bin/clang usr/bin/ld.lld usr/bin/llvm-ar usr/bin/llvm-nm usr/bin/ll
          usr/lib/clang/$major/include/stddef.h usr/lib/clang/$major/lib/$triple/libclang_rt.builtins.a; do
     [ -f "$root/$f" ] || bad "missing $f"
 done
-for l in cc:clang c++:clang++ ld:ld.lld ar:llvm-ar nm:llvm-nm objdump:llvm-objdump strip:llvm-strip ranlib:llvm-ranlib \
+for l in cc:clang c++:clang++ cpp:clang ld:ld.lld ar:llvm-ar nm:llvm-nm objdump:llvm-objdump strip:llvm-strip ranlib:llvm-ranlib \
          readelf:llvm-readelf size:llvm-size strings:llvm-strings objcopy:llvm-objcopy clang++:clang clang-cpp:clang; do
     n=${l%%:*}; want=${l#*:}
     [ "$(readlink "$root/usr/bin/$n" 2>/dev/null)" = "$want" ] || bad "usr/bin/$n is not a link to $want"

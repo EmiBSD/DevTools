@@ -26,7 +26,7 @@
 # architecture, target/llvm/native-<triple>/build is the CMake build and
 # target/llvm/native-<triple>/root the tree as installed (DESTDIR, prefix /usr):
 #   usr/bin                  clang, clang++, clang-cpp, ld.lld, the llvm-* binutils;
-#                            cc, c++, ld, ar and the binutils' names as links (the system's)
+#                            cc, c++, cpp, ld, ar and the binutils' names as links (the system's)
 #   usr/lib/clang/<major>    clang's resource directory: its headers, the builtins
 #   usr/lib                  libc++, libc++abi (the unwinder inside), static and shared
 #   usr/include/c++/v1       libc++'s headers, __config_site among them
@@ -113,6 +113,7 @@ cp "$PREFIX/include/$T/c++/v1/__config_site" "$DEST/usr/include/c++/v1/__config_
 # maintainer's of 2026-11-09 for the binutils), so the base system's own versions can go.
 ln -sf clang "$DEST/usr/bin/cc"
 ln -sf clang++ "$DEST/usr/bin/c++"
+ln -sf clang "$DEST/usr/bin/cpp"            # clang's driver takes the preprocessor mode from the name
 ln -sf ld.lld "$DEST/usr/bin/ld"
 for t in ar nm objdump strip ranlib readelf size strings objcopy; do
     ln -sf llvm-$t "$DEST/usr/bin/$t"

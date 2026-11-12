@@ -13,7 +13,7 @@ path    = ["cmake", "third-party", "runtimes", "llvm", "clang", "lld",
            "libc"]                                         # what the CMake build of build/build.sh reads; libc: only the headers libc++ shares with LLVM's libc (shared/, src/__support/)
 tag     = "llvmorg-23.1.4"                                # resolved to a commit at fetch, recorded in upstream/.pin
 commit  = "7a941dfb2877a0b8cf30323fefa85ad019e0b0f5"       # the commit the tag points to (f2c432f2 is the annotated tag object)
-version = "23.1.4+emibsd.5"                               # the upstream's version, plus our patch level
+version = "23.1.4+emibsd.6"                               # the upstream's version, plus our patch level
 license = ["Apache-2.0 WITH LLVM-exception"]              # the families; the texts stay in the source
 
 [security]
