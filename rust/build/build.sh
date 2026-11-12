@@ -67,6 +67,7 @@ EMIBSD_OS_VERSION=8.0                                 # the release in the targe
 TARGETS="\"$HOST\""
 for t in $KERNEL_TARGETS $SYSTEM_TARGETS; do TARGETS="$TARGETS, \"$t\""; done
 JOBS=${COMP_JOBS:-6}
+FULLVERSION=$(python3 -I -c 'import sys,tomllib; print(tomllib.load(open(sys.argv[1],"rb"))["upstream"]["version"])' rust/UPSTREAM.toml)   # with our patch level: in rustc's description
 # Not named after the host tuple: rustc derives its sysroot from its dylib's directory and
 # takes a directory so named for lib/rustlib/<host>/lib, three levels deeper than it is.
 PREFIX=$ROOT/$OUT/install-$HOST
@@ -170,12 +171,12 @@ locked-deps = true
 docs = false
 compiler-docs = false
 extended = true
-tools = ["rustdoc", "cargo", "clippy", "rustfmt", "src"]
+tools = ["rustdoc", "cargo", "clippy", "rustfmt", "rust-analyzer", "src"]
 jobs = $JOBS
 optimized-compiler-builtins = true
 patch-binaries-for-nix = false
 cargo-native-static = true
-description = "EmiBSD DevTools"
+description = "EmiBSD DevTools $FULLVERSION"
 
 [install]
 prefix = "$PREFIX"
@@ -192,6 +193,7 @@ download-rustc = false
 optimize = true
 debug = false
 debug-assertions = false
+strip = true
 jemalloc = false
 llvm-tools = true
 lld = false

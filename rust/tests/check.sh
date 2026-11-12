@@ -29,6 +29,7 @@ shift 3
 archs=${*:-aarch64 x86_64}             # LLVM's names; all of them unless named (dist.py checks one per tarball)
 here=$(cd "$(dirname "$0")/.." && pwd)
 version=$(sed -n 's/^version *= *"\([^+"]*\).*/\1/p' "$here/UPSTREAM.toml")
+full=$(sed -n 's/^version *= *"\([^"]*\)".*/\1/p' "$here/UPSTREAM.toml")
 llvm_version=$(sed -n 's/^version *= *"\([^+"]*\).*/\1/p' "$here/../llvm/UPSTREAM.toml")
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/emibsd-rust-check.XXXXXX")
 trap 'rm -rf "$tmp"' EXIT
@@ -55,6 +56,10 @@ echo "$vv" | grep -q "^rustc $version" || bad "rustc -vV does not say $version: 
 echo "$vv" | grep -q "^host: $host\$" || bad "rustc's host is not $host"
 echo "$vv" | grep -q "^LLVM version: $llvm_version\$" || bad "rustc's LLVM is not $llvm_version (llvm/'s): $(echo "$vv" | grep LLVM)"
 "$cargo" --version | grep -q "^cargo $version" || bad "cargo --version does not say $version"
+# The patch level in the description: cargo keys its fingerprints on rustc's version text, so a
+# consumer's cache is not reused across two patch levels with different std.
+"$rustc" --version | grep -q -F "(EmiBSD DevTools $full)" || bad "rustc --version does not name $full: $("$rustc" --version)"
+"$prefix/bin/rust-analyzer" --version >/dev/null 2>&1 || bad "bin/rust-analyzer is missing or does not run"
 [ "$("$rustc" --print sysroot)" = "$prefix" ] || bad "sysroot is $("$rustc" --print sysroot), not $prefix"
 
 # std for the host, and the sources the kernel's rust-toolchain.toml asks for.

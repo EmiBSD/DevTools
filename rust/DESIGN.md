@@ -53,7 +53,9 @@ in patch 0002, upstream's `-unknown-none` targets with the vendor changed and no
 | `llvm.download-ci-llvm` | `false` | one LLVM (D-0003) |
 | `llvm.link-shared` | `false` | rustc carries its LLVM statically, as the T1 install provides the static libraries |
 | `rust.channel` | `stable` | the source is a stable release; nightly features stay off |
-| `build.description` | `EmiBSD DevTools` | `rustc --version` says where it came from |
+| `build.description` | `EmiBSD DevTools <version>+emibsd.<N>` | `rustc --version` says where it came from and at which patch level: cargo keys its fingerprints on that text, so a consumer's build cache is not reused across two patch levels whose std differs (the kernel repository hit that between +emibsd.2 and +emibsd.4) |
+| `rust.strip` | `true` | as upstream's own releases: `librustc_driver` without debug information (218 MB unstripped in the native tree); noted for T4, brought forward by the maintainer on 2026-11-11 |
+| `build.tools` | `rustdoc`, `cargo`, `clippy`, `rustfmt`, `rust-analyzer`, `src` on the macOS host; the native tree has no `rust-analyzer` | the kernel repository builds with this toolchain alone, without rustup, so the editor's language server must come from it |
 | `rust.download-rustc` | `false` | nothing downloaded |
 | `rust.jemalloc` | `false` | the system's malloc |
 | `rust.llvm-tools` | `true` | `llvm-tools` component from `llvm/`'s LLVM, as rustup ships it |
@@ -125,7 +127,8 @@ the stage 2 compiler, rustdoc, cargo, clippy, rustfmt and rust-src for EmiBSD, i
 | `llvm-config` for the host is `llvm-config-native.sh` | the native tree's own runs only on EmiBSD; stage 1's, with its answers pointed at the native build tree (libraries, generated headers, host triple; `-lpthread -lm`, no macOS linker flags) |
 | `LLVM_USE_LIBCXX=1`, `CXXSTDLIB_<target>=c++` | rustc_llvm's and the cc crate's C++ library for a target they do not know: the system's libc++ (upstream's switches) |
 | `--target=<arch>-emibsd-emibsd8.0` last in the target's `CFLAGS`/`CXXFLAGS` | the cc crate passes Rust's name, without the OS version; clang's per-target directories (libc++'s `__config_site`) go by LLVM's triple |
-| `<TARGET>_OPENSSL_NO_VENDOR`, `_OPENSSL_DIR` the sysroot's `/usr`, `_OPENSSL_STATIC` | cargo's TLS is the system's LibreSSL, not OpenSSL built from source, which does not know the target; static while the sysroot carries only `libssl.a` |
+| `<TARGET>_OPENSSL_NO_VENDOR`, `_OPENSSL_DIR` the sysroot's `/usr`, `_OPENSSL_STATIC` `0` | cargo's TLS is the system's LibreSSL, not OpenSSL built from source, which does not know the target; linked shared (`libssl.so.<major>.<minor>`, D-0010) when the sysroot has it, which a pinned userland release does (`tools/sysroot.sh`); `_OPENSSL_STATIC` is `1` only for a sysroot with the static libraries alone |
 | openssl-sys told LibreSSL 4.4.x follows 4.3.x | it knows up to 4.3.x and the system's is 4.4.0; the bindings for 4.3 hold. Cargo never rebuilds an edited vendored crate, so what it built of it is removed |
 | the proc-macro libraries removed from `usr/lib` | built for the EmiBSD host and copied by the install beside the driver; they serve only to compile rustc |
+| rust-installer's records (`install.log`, `uninstall.sh`, `manifest-*`, `components`), `usr/etc/bash_completion.d`, `rust-gdb`, `rust-gdbgui`, `rust-lldb` and `rustlib/etc` removed | the records name the build machine's paths and the system's sets own the files; the system has no such directory for completions and no gdb or lldb to wrap. `tools/dist.py` keeps the records out of the macOS artifacts too |
 

@@ -23,6 +23,7 @@
 set -u
 root=${1:?root of the native tree}
 target=${2:?the EmiBSD target, <arch>-emibsd-emibsd}
+sysroot=${3:-}                          # the sysroot it was built against, when known
 here=$(cd "$(dirname "$0")/../.." && pwd)
 readelf=$here/target/llvm/$(cc -dumpmachine 2>/dev/null || echo host)/bin/llvm-readelf
 fail=0
@@ -43,6 +44,20 @@ ls "$root/usr/lib/rustlib/$kernel/lib/"libcore-*.rlib >/dev/null 2>&1 || bad "no
 for f in "$root"/usr/lib/lib*.so; do
     case $(basename "$f") in librustc_driver-*) ;; *) bad "usr/lib/$(basename "$f"): only the driver belongs in usr/lib" ;; esac
 done
+
+# Nothing of the installer's records, the misplaced completion or the debugger wrappers.
+for f in usr/lib/rustlib/install.log usr/lib/rustlib/uninstall.sh usr/lib/rustlib/components usr/etc usr/bin/rust-gdb usr/bin/rust-lldb; do
+    [ -e "$root/$f" ] && bad "$f: has no place in the installed system"
+done
+ls "$root"/usr/lib/rustlib/manifest-* >/dev/null 2>&1 && bad "usr/lib/rustlib/manifest-*: has no place in the installed system"
+# cargo links the system's LibreSSL shared when the sysroot has it, and then carries no path
+# of the machine that built that library.
+if [ -n "$sysroot" ] && ls "$sysroot"/usr/lib/libssl.so.* >/dev/null 2>&1; then
+    d=$("$readelf" -d "$root/usr/bin/cargo" 2>/dev/null)
+    echo "$d" | grep -q 'NEEDED.*\[libssl\.so\.' || bad "usr/bin/cargo: libssl.so is not NEEDED though the sysroot has it"
+    echo "$d" | grep -q 'NEEDED.*\[libcrypto\.so\.' || bad "usr/bin/cargo: libcrypto.so is not NEEDED though the sysroot has it"
+    LC_ALL=C grep -q -a '/Users/' "$root/usr/bin/cargo" && bad "usr/bin/cargo: carries paths of the build machine"
+fi
 
 n=0
 for p in "$root"/usr/bin/* "$root"/usr/lib/librustc_driver-*.so; do

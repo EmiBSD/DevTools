@@ -123,6 +123,10 @@ def add_tree(tar, top, src: Path, arch, epoch):
         rel = path.relative_to(src)
         if any(target_arch(part) not in (None, ARCHS[arch]) for part in rel.parts):
             continue
+        # rust-installer's records name the build machine's paths and mean nothing elsewhere.
+        if rel.parent.name == "rustlib" and (rel.name in ("install.log", "uninstall.sh", "rust-installer-version")
+                                             or rel.name.startswith("manifest-")):
+            continue
         arcname = f"{top}/{rel}"
         if rel == Path("lib/rustlib/components"):
             kept = [c for c in path.read_text().splitlines() if target_arch(c.removeprefix("rust-std-")) in (None, ARCHS[arch])]

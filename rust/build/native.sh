@@ -44,6 +44,7 @@ LLVM_CONFIG=$ROOT/target/llvm/host/bin/llvm-config
 [ -x "$LLVM/bin/clang" ] && [ -x "$LLVM_CONFIG" ] || { echo "native: llvm/'s build is missing (just build llvm first)" >&2; exit 1; }
 EMIBSD_OS_VERSION=8.0
 JOBS=${COMP_JOBS:-6}
+FULLVERSION=$(python3 -I -c 'import sys,tomllib; print(tomllib.load(open(sys.argv[1],"rb"))["upstream"]["version"])' rust/UPSTREAM.toml)   # with our patch level: in rustc's description
 
 # The native build's own source: build.sh's, cloned, its vendored crates taught the EmiBSD
 # host by emibsd-vendor.py (as patches 0003 and 0004 teach std and its libc); build.sh's copy,
@@ -128,7 +129,7 @@ jobs = $JOBS
 optimized-compiler-builtins = true
 patch-binaries-for-nix = false
 cargo-native-static = true
-description = "EmiBSD DevTools"
+description = "EmiBSD DevTools $FULLVERSION"
 
 [install]
 prefix = "/usr"
@@ -145,6 +146,7 @@ download-rustc = false
 optimize = true
 debug = false
 debug-assertions = false
+strip = true
 jemalloc = false
 llvm-tools = false
 lld = false
@@ -175,10 +177,14 @@ export EMIBSD_NATIVE_LLVM="$NATIVE_LLVM" EMIBSD_NATIVE_TRIPLE="$LT" LLVM_USE_LIB
 # The cc crate's C++ library for the target, which it does not know: the system's libc++.
 export "CXXSTDLIB_$v=c++"
 # cargo's TLS: the system's LibreSSL from the sysroot, not OpenSSL built from source (which
-# does not know the target). The sysroot carries only its static libraries, so cargo takes them
-# statically for now; dynamic when the sysroot carries libssl.so (D-0010).
+# does not know the target); shared, as the system's own programs link it (D-0010), when the
+# sysroot carries libssl.so.<major>.<minor>, which lld resolves -lssl to (llvm/'s patch 0005).
+# openssl-sys looks for an unversioned libssl.so to choose, so it is told. A sysroot with the
+# static libraries alone (one given by path, before the userland releases the architecture)
+# leaves cargo carrying them.
 V=$(echo "$T" | tr a-z- A-Z_)
-export "${V}_OPENSSL_NO_VENDOR=1" "${V}_OPENSSL_DIR=$sysroot/usr" "${V}_OPENSSL_STATIC=1"
+if ls "$sysroot"/usr/lib/libssl.so.* >/dev/null 2>&1; then ssl_static=0; else ssl_static=1; fi
+export "${V}_OPENSSL_NO_VENDOR=1" "${V}_OPENSSL_DIR=$sysroot/usr" "${V}_OPENSSL_STATIC=$ssl_static"
 
 echo "== native rust: $T (on $HOST, $JOBS jobs; LLVM $NATIVE_LLVM)"
 [ -d "$DEST" ] && chmod -R u+w "$DEST" && rm -rf "$DEST"
@@ -187,6 +193,14 @@ echo "== native rust: $T (on $HOST, $JOBS jobs; LLVM $NATIVE_LLVM)"
 # x.py's install copies them; they serve only to compile rustc. As the cross toolchain's install
 # has it, lib/ keeps the driver alone.
 find "$DEST/usr/lib" -maxdepth 1 -name 'lib*.so' ! -name 'librustc_driver-*.so' -delete
+# What the install leaves that has no place in the installed system: rust-installer's own
+# records (they name this machine's paths, and the system's sets own the files), the bash
+# completion under usr/etc (no such directory there), and the debugger wrappers with their
+# scripts (the system has no gdb or lldb to wrap).
+rm -f "$DEST"/usr/lib/rustlib/install.log "$DEST"/usr/lib/rustlib/uninstall.sh "$DEST"/usr/lib/rustlib/manifest-* \
+      "$DEST"/usr/lib/rustlib/components "$DEST"/usr/lib/rustlib/rust-installer-version \
+      "$DEST"/usr/bin/rust-gdb "$DEST"/usr/bin/rust-gdbgui "$DEST"/usr/bin/rust-lldb
+rm -rf "$DEST/usr/etc" "$DEST/usr/lib/rustlib/etc"
 echo "== native rust done: $DEST"
-sh rust/tests/native-check.sh "$DEST" "$T"
+sh rust/tests/native-check.sh "$DEST" "$T" "$sysroot"
 done
