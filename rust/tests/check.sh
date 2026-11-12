@@ -59,6 +59,9 @@ echo "$vv" | grep -q "^LLVM version: $llvm_version\$" || bad "rustc's LLVM is no
 # The patch level in the description: cargo keys its fingerprints on rustc's version text, so a
 # consumer's cache is not reused across two patch levels with different std.
 "$rustc" --version | grep -q -F "(EmiBSD DevTools $full)" || bad "rustc --version does not name $full: $("$rustc" --version)"
+for p in rustc rustdoc cargo cargo-build; do
+    [ -s "$prefix/share/man/man1/$p.1" ] || bad "missing share/man/man1/$p.1"
+done
 "$prefix/bin/rust-analyzer" --version >/dev/null 2>&1 || bad "bin/rust-analyzer is missing or does not run"
 [ "$("$rustc" --print sysroot)" = "$prefix" ] || bad "sysroot is $("$rustc" --print sysroot), not $prefix"
 

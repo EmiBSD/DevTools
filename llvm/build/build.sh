@@ -17,7 +17,8 @@
 #    include/<triple>/: compiler-rt's builtins first, then libunwind, libc++abi and libc++,
 #    compiled by stage 1's clang against that architecture's sysroot (its libc, crt, headers);
 #    then target/llvm/rt-<triple>, compiler-rt's profile and ubsan_minimal runtimes.
-# 4. tests/check.sh over the result.
+# 4. The manual pages of the tools (build/man.sh) into share/man/man1.
+# 5. tests/check.sh over the result.
 #
 # Nothing of OpenBSD is read. Never touches upstream/.
 set -eu
@@ -188,5 +189,7 @@ cmake -G Ninja -S "$SRC/compiler-rt" -B "$OUT/rt-$T" \
 ninja -C "$OUT/rt-$T" -j "$JOBS" install
 rm -f "$PREFIX/lib/clang/${VERSION%%.*}/lib/$T"/libclang_rt.*.so
 done
+echo "== manual pages"
+sh llvm/build/man.sh "$PREFIX/share/man/man1"
 echo "== done: $PREFIX"
 sh llvm/tests/check.sh "$PREFIX"

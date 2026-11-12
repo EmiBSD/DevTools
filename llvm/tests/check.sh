@@ -23,6 +23,14 @@ for p in bin/clang bin/clang++ bin/clang-cpp bin/clang-scan-deps bin/ld.lld bin/
          bin/llvm-symbolizer bin/llvm-addr2line bin/llvm-cxxfilt bin/llvm-dwarfdump bin/llvm-cov bin/llvm-profdata; do
     [ -x "$prefix/$p" ] || bad "missing $p"
 done
+# Each tool with its manual page (build/man.sh), under its own name: the system's names are the
+# native tree's.
+for p in clang ld.lld llvm-ar llvm-ranlib llvm-nm llvm-objcopy llvm-objdump llvm-readobj llvm-readelf llvm-strip \
+         llvm-size llvm-strings llvm-symbolizer llvm-addr2line llvm-cxxfilt llvm-dwarfdump llvm-cov llvm-profdata; do
+    [ -s "$prefix/share/man/man1/$p.1" ] || bad "missing share/man/man1/$p.1"
+done
+grep -q '^\.TH "CLANG" "1"' "$prefix/share/man/man1/clang.1" 2>/dev/null || bad "share/man/man1/clang.1 is not a manual page"
+[ ! -e "$prefix/share/man/man1/cc.1" ] || bad "share/man/man1/cc.1: the system's names belong to the native tree"
 # A toolchain, not LLVM's development kit (DESIGN.md: LLVM_DISTRIBUTION_COMPONENTS).
 for p in bin/llc bin/opt bin/clang-repl bin/llvm-config lib/libLLVMCore.a include/llvm; do
     [ ! -e "$prefix/$p" ] || bad "$p installed: not of the distribution"

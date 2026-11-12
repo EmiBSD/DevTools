@@ -131,7 +131,9 @@ source's command guide by Sphinx's man builder, lld's own `ld.lld.1`, and the sa
 the system's names as links (`cc.1`, `ar.1`, `ld.1`...). Sphinx is a host tool, the user's
 install. `build/man/conf.py` is ours, for the manual pages alone: upstream's `docs/conf.py`
 builds the whole documentation and imports a helper from `llvm-project/utils/docs`, which is not
-among the fetched paths; it lists the pages as upstream's does, so the pages' text is the same. Against the base system's lists the tree deliberately lacks: a shared `libLLVM` and LLVM's
+among the fetched paths; it lists the pages as upstream's does, so the pages' text is the same.
+The macOS-hosted tree carries the same pages in `share/man/man1` under the tools' own names
+(`clang.1`, `llvm-ar.1`, `ld.lld.1`), without the system's names, which are not its commands. Against the base system's lists the tree deliberately lacks: a shared `libLLVM` and LLVM's
 headers and `llvm-config` (the tools are static against LLVM, D-0010, and the development kit is
 not shipped), the profiled `_p` archives (D-0010), `lldb` (its source is not among the paths
 fetched, and upstream has no native-process support for the OpenBSD interface: a decision of its

@@ -45,6 +45,10 @@ for f in "$root"/usr/lib/lib*.so; do
     case $(basename "$f") in librustc_driver-*) ;; *) bad "usr/lib/$(basename "$f"): only the driver belongs in usr/lib" ;; esac
 done
 
+# The manual pages upstream installs, where the system keeps them.
+for f in rustc rustdoc cargo cargo-build; do
+    [ -s "$root/usr/share/man/man1/$f.1" ] || bad "missing usr/share/man/man1/$f.1"
+done
 # Nothing of the installer's records, the misplaced completion or the debugger wrappers.
 for f in usr/lib/rustlib/install.log usr/lib/rustlib/uninstall.sh usr/lib/rustlib/components usr/etc usr/bin/rust-gdb usr/bin/rust-lldb; do
     [ -e "$root/$f" ] && bad "$f: has no place in the installed system"
