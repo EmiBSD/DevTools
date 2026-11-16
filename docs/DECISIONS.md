@@ -436,3 +436,104 @@ The maintainer, 2026-11-08 (the first four points in the userland's session, con
   and places `libc++.so.13.0` and `libc++abi.so.10.0` in `base`.
 - T3b's native tools need the base system's shared libc++ at run time; its proof in QEMU runs
   them on a system carrying that runtime.
+
+---
+
+# D-0011: Rust for the system's targets carries the system's branch protection by default, as its C does
+
+Date: 2026-11-15 · Status: accepted
+
+## Context
+EmiBSD's kernel enforces branch target identification on the code of a process (aarch64) and
+indirect branch tracking (x86_64). The system's C has been compiled for both since the target
+exists: clang's driver turns them on for the EmiBSD triples (`llvm/patches/0003`). rustc was
+never taught the same. It emits the landing pads only with `-Zbranch-protection` and
+`-Zcf-protection`, options a stable compiler refuses, so the released `std` and every Rust
+program for the targets had none. On 2026-11-15 another EmiBSD repository ran the native
+`rust-1.99.1+emibsd.5` under QEMU on a processor with BTI: rustc and cargo stopped with SIGILL,
+while the native clang and lld ran. The earlier proofs ran on an emulated processor without
+BTI and could not show it. The same binaries for x86_64 carry no IBT.
+
+## Decision
+The maintainer, 2026-11-15. Of the two ways out, marking Rust's executables so that the kernel
+exempts them from the enforcement, or having rustc emit the protection, the second: Rust and C
+are protected alike.
+- On `aarch64-emibsd-emibsd`, rustc's default is BTI with return-address signing (non-leaf,
+  key A); on `x86_64-emibsd-emibsd`, indirect branch tracking with no jump tables. They are
+  the defaults clang's driver has for the same targets.
+- The defaults belong to the EmiBSD targets alone. The kernel's `*-emibsd-none-softfloat`
+  targets are untouched, and so are the targets of any other system.
+
+## Consequences
+- `rust/patches/0006`, and `std` built with it: Rust `1.99.1+emibsd.6`, for both
+  architectures, cross and native.
+- Objects compiled for the targets by an earlier release have no landing pads: a consumer
+  rebuilds what it links.
+- The checks on the build machine read the property note of what rustc emits and count the
+  landing pads in the code; the proof is a run under the kernel on a processor with BTI. The
+  x86_64 side stays unproven until the kernel boots on amd64.
+- Hand-written assembly reached by an indirect branch needs its own landing pad: none is
+  known in what the trees carry, and a fault found by running them is fixed where the
+  assembly lives.
+
+---
+
+# D-0012: The native toolchain shares one LLVM: the tools and rustc link `libLLVM.so`, clang its `libclang-cpp.so`; the two native trees are released together
+
+Date: 2026-11-15 · Status: accepted
+
+## Context
+D-0010 kept LLVM's libraries static inside each native tool, as upstream links them. The
+userland integrated the native trees into `comp` and measured the cost: the compressed set
+went from 16 MB to 215 MB; in the arm64 LLVM tree `usr/bin` is 397 of 436 MB, fifteen
+programs each carrying LLVM, and Rust's `librustc_driver` carries its own copy in 145 MB. The
+base system's own lists name a shared `libLLVM.so.<major>.<minor>` in `/usr/lib`.
+
+## Decision
+The maintainer, 2026-11-15, on the userland's request:
+- The native LLVM tree builds LLVM as one shared library that every tool links, and clang's
+  libraries as one `libclang-cpp` that clang and `clang-scan-deps` link, with upstream's own
+  CMake switches. This takes back D-0010's static LLVM; the rest of D-0010 stands.
+- The names are upstream's, `libLLVM.so.23.1` and `libclang-cpp.so.23.1` (major.minor), which
+  is already the system's scheme; no unversioned link is installed.
+- The native rustc links the same `libLLVM.so.23.1` and carries no LLVM of its own.
+- The macOS-hosted cross trees do not change.
+
+## Consequences
+- LLVM `23.1.4+emibsd.7`. `rust/patches/0007` has `rustc_llvm` link LLVM shared for an EmiBSD
+  host; bootstrap's own switch is one for every host, the build machine's among them.
+- The native Rust tree runs only beside the native LLVM tree of the same release: the two
+  are released together, and the userland lays both into `comp`.
+- Every start of a tool loads and relocates a large shared object through the system's
+  `ld.so`: slower starts, to be measured under the kernel, and one more thing the proof in
+  QEMU exercises. The library carries upstream's symbol versions (`LLVM_23.1`).
+- `libc++.so.13.0`, `libc++abi.so.10.0` and `libcompiler_rt.a` keep their names.
+
+---
+
+# D-0013: Wherever the imported toolchains support OpenBSD, they support EmiBSD beside it
+
+Date: 2026-11-15 · Status: accepted
+
+## Context
+EmiBSD presents OpenBSD's interface, and the patch series teach the toolchains the EmiBSD
+target mostly by naming it beside OpenBSD. The series had gaps: the userland, reading the
+native Rust tree's sources, found `std_detect`'s run-time detection of the processor's
+features selected for OpenBSD and not for EmiBSD. The maintainer means EmiBSD to part from its
+origin little by little, which needs its own name everywhere first.
+
+## Decision
+The maintainer, 2026-11-15: wherever something in the imported sources supports OpenBSD, under
+any spelling of the name, it supports EmiBSD as well, beside OpenBSD and not in its place.
+What is EmiBSD's own is conditioned on EmiBSD alone: D-0011's defaults are not extended to
+the OpenBSD targets.
+
+## Consequences
+- `rust/patches/0003` gains `std_detect`'s condition, in Rust `1.99.1+emibsd.6`.
+- Known and left as they are, each for its reason: `compiler-builtins`' build script, which
+  on OpenBSD links the system's `compiler_rt` instead of building the builtins (the EmiBSD
+  targets build them, and the driver links the system's archive around `-lc`); bootstrap's
+  and `rustc_llvm`'s choices by host name, which the build's own settings make here; the `cc`
+  crate's target table in the vendored sources `rust-src` carries.
+- A pin bump re-reads the new source for conditions naming OpenBSD, as it re-applies the
+  series.

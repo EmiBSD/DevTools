@@ -39,6 +39,10 @@ dependencies, `docs/DECISIONS.md` the decisions.
   an EmiBSD path, the EmiBSD target of decision D-0004). It is the smallest diff that does
   it, its header says why and carries the author's ISC block (`docs/POLICIES.md`), and
   DESIGN.md lists it. A patch that upstream later takes is dropped at the next pin bump.
+- Wherever an imported source supports OpenBSD, it supports EmiBSD beside it (D-0013): a
+  condition naming OpenBSD that our series leaves without EmiBSD is a gap to close, in the
+  patch that owns that part of the source. What is EmiBSD's own (a default, a path, a name)
+  is conditioned on EmiBSD alone.
 - Patches are never applied to `upstream/`; the series is applied to the copy in `target/`.
 
 ## The artifacts (T3)
