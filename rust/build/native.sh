@@ -22,7 +22,8 @@
 #
 # Needs build.sh's result (target/rust/src, the patched and vendored source) and llvm/'s native
 # tree for the same architecture (`just native llvm`): rustc for an EmiBSD host links that
-# tree's LLVM libraries, read through llvm-config-native.sh. x.py builds a stage 1 compiler for
+# tree's shared libLLVM (D-0012, patch 0007), read through llvm-config-native.sh, and so runs
+# only beside the native LLVM of the same release. x.py builds a stage 1 compiler for
 # this machine first, then the stage 2 compiler, its tools and std for the EmiBSD host with it.
 # target/rust/native-<triple>/build is x.py's build directory, target/rust/native-<triple>/root
 # the tree as installed (DESTDIR, prefix /usr): usr/bin/{rustc,cargo,rustdoc,clippy-driver,
@@ -100,7 +101,7 @@ esac
 T=$ARCH-emibsd-emibsd                       # Rust's name
 LT=$ARCH-emibsd-emibsd$EMIBSD_OS_VERSION    # LLVM's triple
 NATIVE_LLVM=$ROOT/target/llvm/native-$LT/build
-[ -f "$NATIVE_LLVM/lib/libLLVMCore.a" ] || { echo "native: no LLVM libraries in $NATIVE_LLVM (just native llvm $ARCH)" >&2; exit 1; }
+ls "$NATIVE_LLVM"/lib/libLLVM.so.* >/dev/null 2>&1 || { echo "native: no shared libLLVM in $NATIVE_LLVM (just native llvm $ARCH)" >&2; exit 1; }
 clang=$LLVM/bin/$LT-clang
 OUT=target/rust/native-$T
 DEST=$ROOT/$OUT/root

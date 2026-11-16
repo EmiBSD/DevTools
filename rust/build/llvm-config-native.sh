@@ -19,7 +19,9 @@
 # stage 1's (the same source, version, targets and components) and points its answers at the
 # native build tree: its libraries and generated headers, its tools, its host triple, the
 # system libraries the native build links (zlib, zstd, libxml2 off: llvm/build/native.sh), and
-# none of the macOS linker's flags.
+# none of the macOS linker's flags. The native tree's LLVM is one shared library (D-0012) and
+# stage 1's is static, so what is asked with --link-shared is answered here: the library by
+# its name, found in the native build tree.
 #
 #   EMIBSD_NATIVE_LLVM=<target/llvm/native-<triple>/build> EMIBSD_NATIVE_TRIPLE=<triple> \
 #       llvm-config-native.sh <llvm-config arguments>
@@ -28,10 +30,15 @@ here=$(cd "$(dirname "$0")/../.." && pwd)
 host=$here/target/llvm/host
 native=${EMIBSD_NATIVE_LLVM:?the native LLVM build tree}
 triple=${EMIBSD_NATIVE_TRIPLE:?the native host triple}
+shared=0
+for a in "$@"; do [ "$a" = --link-shared ] && shared=1; done
 for a in "$@"; do
     case $a in
         --system-libs) echo "-lpthread -lm"; exit 0 ;;
         --host-target) echo "$triple"; exit 0 ;;
+        --shared-mode) [ $shared = 1 ] && { echo shared; exit 0; } ;;
+        --libs)        [ $shared = 1 ] && { echo "-lLLVM"; exit 0; } ;;
+        --ldflags)     [ $shared = 1 ] && { echo "-L$native/lib"; exit 0; } ;;
     esac
 done
 "$host/bin/llvm-config" "$@" | sed \

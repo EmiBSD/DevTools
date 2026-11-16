@@ -1,0 +1,31 @@
+rustc_llvm: a rustc hosted on EmiBSD links the system's shared libLLVM
+
+Why a patch: the native toolchain's LLVM tools and rustc share one
+libLLVM.so.<major>.<minor>, the system's library, which llvm/'s native
+tree installs in /usr/lib (D-0012); librustc_driver no longer carries a
+copy of LLVM. Whether rustc_llvm links LLVM shared or static is one switch
+of bootstrap for every host it builds (llvm.link-shared, handed to this
+build script as LLVM_LINK_SHARED), and the native rustc is cross-built on
+a machine whose own stage 1 compiler links llvm/'s static libraries: there
+is no shared LLVM for that machine, and no setting that says "shared for
+this host only". The build script therefore links shared when the rustc
+it builds is hosted on EmiBSD. Nothing changes for a rustc hosted
+elsewhere, the cross toolchain's among them. EmiBSD-specific: not for
+upstream. Written by EmiBSD (ISC) over upstream's text (Apache-2.0 OR
+MIT), carried by DevTools over the pinned tag. Author: Emilio Navarrete
+Lineros, 2026-11-15.
+
+--- a/compiler/rustc_llvm/build.rs
++++ b/compiler/rustc_llvm/build.rs
+@@ -36,7 +36,10 @@
+ fn detect_llvm_link() -> (&'static str, &'static str) {
+     // Force the link mode we want, preferring static by default, but
+     // possibly overridden by `configure --enable-llvm-link-shared`.
+-    if tracked_env_var_os("LLVM_LINK_SHARED").is_some() {
++    // A rustc hosted on EmiBSD links the system's shared libLLVM, whatever the machine that
++    // builds it links for its own compiler: bootstrap's switch is one for every host.
++    let emibsd_host = env::var("TARGET").is_ok_and(|target| target.contains("-emibsd-emibsd"));
++    if tracked_env_var_os("LLVM_LINK_SHARED").is_some() || emibsd_host {
+         ("dylib", "--link-shared")
+     } else {
+         ("static", "--link-static")

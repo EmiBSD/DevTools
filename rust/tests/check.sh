@@ -139,6 +139,21 @@ for arch in $archs; do
         "$readelf" -d "$tmp/ed-$arch" | grep -q 'libc.so' || bad "$arch ed: libc.so is not NEEDED"
         "$readelf" -d "$tmp/ed-$arch" | grep -q 'NEEDED.*\[libc++abi.so.10.0\]' || bad "$arch ed: libc++abi.so.10.0 (the unwinder) is not NEEDED"
         "$readelf" -d "$tmp/ed-$arch" | grep -q 'NEEDED.*libunwind' && bad "$arch ed: a separate libunwind is NEEDED"
+        # The system's branch protection, which its kernel enforces and its C is compiled with,
+        # is rustc's default for the target (patch 0006, D-0011): the object it emits says so in
+        # its GNU property note, and the code of the hello, std's with it, opens its functions
+        # with landing pads (a tree built before the patch has a handful, from the C in it).
+        case $arch in
+            aarch64) note='aarch64 feature: BTI, PAC'; pad='bti|paciasp' ;;
+            x86_64)  note='x86 feature: IBT';          pad='endbr64' ;;
+        esac
+        if "$rustc" --target "$target" --emit=obj -O -o "$tmp/e-$arch.o" "$tmp/e.rs" 2> "$tmp/eo-$arch.err"; then
+            "$readelf" -n "$tmp/e-$arch.o" | grep -q "$note" || bad "$arch: the object rustc emits has no '$note' property"
+        else
+            bad "the object for $target did not compile: $(head -5 "$tmp/eo-$arch.err")"
+        fi
+        pads=$("$llvm/bin/llvm-objdump" -d --no-show-raw-insn "$tmp/ed-$arch" 2>/dev/null | head -60000 | grep -c -E "$pad")
+        [ "$pads" -ge 300 ] || bad "$arch ed: $pads landing pads in the first 60000 lines of its code: std is not compiled with the system's branch protection"
     else
         bad "the hello for $target did not link dynamically: $(head -8 "$tmp/ed-$arch.err")"
     fi

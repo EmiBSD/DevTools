@@ -6,7 +6,10 @@ kept byte-identical). `target_os = "emibsd"` joins every condition that
 names "openbsd" in std, unwind and backtrace (futex(2), arc4random, the
 stack-guard query through pthread_stackseg_np, getthrid, the socket options,
 the file-system calls, dl_iterate_phdr for backtraces, libc++abi for the
-unwinder); what carries the system's name is EmiBSD's own: std::os::emibsd
+unwinder), and the one in std_detect, the run-time detection of the
+processor's features through sysctl and elf_aux_info (added 2026-11-15:
+without it only what was fixed at compile time was reported); what carries
+the system's name is EmiBSD's own: std::os::emibsd
 (the raw types and MetadataExt, as std::os::openbsd has them),
 std::env::consts::OS = "emibsd", the target_os list of std's build script;
 libc++abi carries the unwinder, as on OpenBSD (DevTools D-0010), so the
@@ -1120,3 +1123,14 @@ tag, offered upstream when stable. Author: Emilio Navarrete Lineros,
  pub fn futex_wake_all(futex: &Atomic<u32>) {
      use crate::ptr::{null, null_mut};
      unsafe {
+--- a/library/std_detect/src/detect/mod.rs
++++ b/library/std_detect/src/detect/mod.rs
+@@ -61,7 +61,7 @@
+         #[path = "os/freebsd/mod.rs"]
+         mod os;
+     }
+-    target_os = "openbsd" => {
++    any(target_os = "openbsd", target_os = "emibsd") => {
+         #[allow(dead_code)] // we don't use code that calls the mrs instruction.
+         #[cfg(target_arch = "aarch64")]
+         #[path = "os/aarch64.rs"]

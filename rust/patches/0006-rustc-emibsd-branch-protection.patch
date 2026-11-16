@@ -1,0 +1,104 @@
+rustc: BTI on aarch64 and IBT on x86_64 by default for EmiBSD
+
+Why a patch: EmiBSD's kernel enforces branch target identification on
+every executable page of a process (aarch64) and indirect branch tracking
+(x86_64), and the system's C is compiled for both: clang's driver for the
+target turns on -mbranch-target-enforce with non-leaf return address
+signing, and -fcf-protection=branch with no jump tables (llvm/'s patch
+0003). rustc emits neither unless asked with -Zbranch-protection and
+-Zcf-protection, which a stable compiler refuses, so std and every Rust
+program for the target had no landing pads: on a processor with BTI the
+native rustc and cargo stopped with SIGILL at their first indirect branch
+(reported from a run under QEMU with hvf, 2026-11-15; an emulated
+cortex-a72 has no BTI and never showed it). This makes them the target's
+default, where the session answers for the options: on
+aarch64-emibsd-emibsd, with no -Zbranch-protection given, BTI and pac-ret
+(non-leaf, key A), as the C; on x86_64-emibsd-emibsd, with -Zcf-protection
+at "none", branch protection, and no jump tables whatever -Cjump-tables
+says (they would jump indirectly to labels with no endbr64). The kernel's
+targets (os "none") are untouched. EmiBSD-specific: not for upstream.
+Written by EmiBSD (ISC) over upstream's text (Apache-2.0 OR MIT), carried
+by DevTools over the pinned tag. Author: Emilio Navarrete Lineros,
+2026-11-15.
+
+--- a/compiler/rustc_codegen_llvm/src/attributes.rs
++++ b/compiler/rustc_codegen_llvm/src/attributes.rs
+@@ -328,7 +328,7 @@
+ }
+ 
+ fn nojumptables_attr<'ll>(cx: &SimpleCx<'ll>, sess: &Session) -> Option<&'ll Attribute> {
+-    if sess.opts.cg.jump_tables {
++    if sess.jump_tables() {
+         return None;
+     }
+ 
+--- a/compiler/rustc_codegen_llvm/src/context.rs
++++ b/compiler/rustc_codegen_llvm/src/context.rs
+@@ -457,7 +457,7 @@
+     }
+ 
+     // Pass on the control-flow protection flags to LLVM (equivalent to `-fcf-protection` in Clang).
+-    if let CFProtection::Branch | CFProtection::Full = sess.opts.unstable_opts.cf_protection {
++    if let CFProtection::Branch | CFProtection::Full = sess.cf_protection() {
+         llvm::add_module_flag_u32(
+             llmod,
+             llvm::ModuleFlagMergeBehavior::Override,
+@@ -465,7 +465,7 @@
+             1,
+         );
+     }
+-    if let CFProtection::Return | CFProtection::Full = sess.opts.unstable_opts.cf_protection {
++    if let CFProtection::Return | CFProtection::Full = sess.cf_protection() {
+         llvm::add_module_flag_u32(
+             llmod,
+             llvm::ModuleFlagMergeBehavior::Override,
+--- a/compiler/rustc_session/src/session.rs
++++ b/compiler/rustc_session/src/session.rs
+@@ -1000,6 +1000,17 @@
+     pub fn branch_protection(&self) -> Option<BranchProtection> {
+         let mut bp = self.opts.unstable_opts.branch_protection;
+ 
++        // EmiBSD's kernel enforces branch target identification on every executable page of a
++        // process, and its C is compiled with BTI and non-leaf return address signing (key A):
++        // unless the option says otherwise, so is Rust for it.
++        if bp.is_none() && self.target.os == Os::EmiBsd && self.target.arch == Arch::AArch64 {
++            bp = Some(BranchProtection {
++                bti: true,
++                pac_ret: Some(config::PacRet { leaf: false, pc: false, key: PAuthKey::A }),
++                gcs: false,
++            });
++        }
++
+         if let Some(bp) = bp.as_mut() {
+             // Windows on Arm only supports PAC Key B for return address signing, as shown in
+             // https://github.com/llvm/llvm-project/pull/203989. We parse the CLI flags for branch
+@@ -1016,6 +1027,29 @@
+         bp
+     }
+ 
++    /// Returns the `-Zcf-protection` setting, adjusted to the current target: EmiBSD's kernel
++    /// enforces indirect branch tracking on x86_64, and its C is compiled with it, so branch
++    /// protection is what "none" means there.
++    pub fn cf_protection(&self) -> config::CFProtection {
++        let cf = self.opts.unstable_opts.cf_protection;
++        if cf == config::CFProtection::None && self.emibsd_ibt() {
++            config::CFProtection::Branch
++        } else {
++            cf
++        }
++    }
++
++    /// Whether `-Cjump-tables` holds on the current target. Under EmiBSD's indirect branch
++    /// tracking a jump table would jump indirectly to labels with no `endbr64`, so there are
++    /// none on x86_64, as in its C.
++    pub fn jump_tables(&self) -> bool {
++        self.opts.cg.jump_tables && !self.emibsd_ibt()
++    }
++
++    fn emibsd_ibt(&self) -> bool {
++        self.target.os == Os::EmiBsd && self.target.arch == Arch::X86_64
++    }
++
+     pub fn must_emit_unwind_tables(&self) -> bool {
+         // This is used to control the emission of the `uwtable` attribute on
+         // LLVM functions. The `uwtable` attribute according to LLVM is:

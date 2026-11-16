@@ -18,19 +18,21 @@
 # the machine that built it, without running it: the tree as the installed system has it
 # (D-0010), every program and the driver an ELF for the target's machine that EmiBSD's ld.so
 # loads (OS/ABI 12, /usr/libexec/ld.so, the system's libc by name, no rpath but upstream's
-# $ORIGIN/../lib, the stack-guard segment wherever the stack guard is used), std for the host, core and alloc for the kernel's target, the sources. Running it
-# is the proof in QEMU, not this.
+# $ORIGIN/../lib, the stack-guard segment wherever the stack guard is used), std for the host, core and alloc for the kernel's target, the sources;
+# the driver linking the system's shared libLLVM (D-0012), and the code carrying the landing
+# pads the kernel's branch protection asks for (D-0011). Running it is the proof in QEMU, not this.
 set -u
 root=${1:?root of the native tree}
 target=${2:?the EmiBSD target, <arch>-emibsd-emibsd}
 sysroot=${3:-}                          # the sysroot it was built against, when known
 here=$(cd "$(dirname "$0")/../.." && pwd)
 readelf=$here/target/llvm/$(cc -dumpmachine 2>/dev/null || echo host)/bin/llvm-readelf
+objdump=$here/target/llvm/$(cc -dumpmachine 2>/dev/null || echo host)/bin/llvm-objdump
 fail=0
 bad() { echo "native-check: $*"; fail=1; }
 case $target in
-    aarch64-*) machine="AArch64";                       kernel=aarch64-emibsd-none-softfloat ;;
-    x86_64-*)  machine="Advanced Micro Devices X86-64"; kernel=x86_64-emibsd-none-softfloat ;;
+    aarch64-*) machine="AArch64";                       kernel=aarch64-emibsd-none-softfloat; pad='bti|paciasp' ;;
+    x86_64-*)  machine="Advanced Micro Devices X86-64"; kernel=x86_64-emibsd-none-softfloat;  pad='endbr64' ;;
     *) echo "native-check: unknown target $target" >&2; exit 2 ;;
 esac
 
@@ -62,6 +64,18 @@ if [ -n "$sysroot" ] && ls "$sysroot"/usr/lib/libssl.so.* >/dev/null 2>&1; then
     echo "$d" | grep -q 'NEEDED.*\[libcrypto\.so\.' || bad "usr/bin/cargo: libcrypto.so is not NEEDED though the sysroot has it"
     LC_ALL=C grep -q -a '/Users/' "$root/usr/bin/cargo" && bad "usr/bin/cargo: carries paths of the build machine"
 fi
+
+# The driver links the system's libLLVM, which llvm/'s native tree installs, and carries no
+# LLVM of its own (D-0012).
+for f in "$root"/usr/lib/librustc_driver-*.so; do
+    "$readelf" -d "$f" 2>/dev/null | grep -q 'NEEDED.*\[libLLVM\.so\.[0-9]*\.[0-9]*\]' || bad "usr/lib/$(basename "$f"): libLLVM.so.<major>.<minor> is not NEEDED"
+done
+# The system's branch protection in the code (D-0011, patch 0006): functions open with landing
+# pads. A tree built without it has a handful in the same stretch, from the C in it.
+for f in "$root"/usr/bin/cargo "$root"/usr/lib/librustc_driver-*.so; do
+    pads=$("$objdump" -d --no-show-raw-insn "$f" 2>/dev/null | head -200000 | grep -c -E "$pad")
+    [ "$pads" -ge 1000 ] || bad "${f#"$root"/}: $pads landing pads in the first 200000 lines of its code: not compiled with the system's branch protection"
+done
 
 n=0
 for p in "$root"/usr/bin/* "$root"/usr/lib/librustc_driver-*.so; do
