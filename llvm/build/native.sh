@@ -29,11 +29,14 @@
 #                            cc, c++, cpp, ld, ar and the binutils' names as links (the system's)
 #   usr/lib/clang/<major>    clang's resource directory: its headers, the builtins
 #   usr/lib                  libc++, libc++abi (the unwinder inside), static and shared;
-#                            libcompiler_rt.a, the builtins under the system's name
+#                            libcompiler_rt.a, the builtins under the system's name;
+#                            libLLVM.so.<major>.<minor> and libclang-cpp.so.<major>.<minor>
 #   usr/share/man/man1       clang.1, the llvm-* pages, ld.lld.1, and the system's names as links
 #   usr/include/c++/v1       libc++'s headers, __config_site among them
-# The tools link dynamically against the system's libc and libc++ (libc++.so.13.0); LLVM's own
-# libraries are static inside each, as upstream links them (D-0010). No rpath.
+# The tools link dynamically against the system's libc and libc++ (libc++.so.13.0), and against
+# one shared libLLVM, clang and clang-scan-deps against one libclang-cpp too (D-0012, which
+# takes D-0010's static LLVM back): upstream's own names, which are the system's scheme, and no
+# unversioned link. rustc for this host links the same libLLVM (rust/'s native build). No rpath.
 #
 # Nothing of OpenBSD is read. Never touches upstream/.
 set -eu
@@ -51,8 +54,8 @@ grep -q 'llvm-host-emibsd' "$SRC/.emibsd-src" \
     || { echo "native: the source lacks the EmiBSD host patch (UPSTREAM.toml's series; just build llvm)" >&2; exit 1; }
 for t in cmake ninja python3; do command -v $t >/dev/null || { echo "native: $t not found (the user's install)" >&2; exit 1; }; done
 MAJOR=$("$PREFIX/bin/clang" -dumpversion | cut -d. -f1)
-# The same distribution as the cross toolchain's (build.sh, DESIGN.md).
-DISTRIBUTION="clang;clang-resource-headers;clang-scan-deps;lld;llvm-ar;llvm-ranlib;llvm-nm;llvm-objcopy;llvm-strip;llvm-objdump;llvm-readobj;llvm-readelf;llvm-size;llvm-strings;llvm-symbolizer;llvm-addr2line;llvm-cxxfilt;llvm-dwarfdump;llvm-cov;llvm-profdata"
+# The same distribution as the cross toolchain's (build.sh, DESIGN.md), and the two shared libraries.
+DISTRIBUTION="LLVM;clang-cpp;clang;clang-resource-headers;clang-scan-deps;lld;llvm-ar;llvm-ranlib;llvm-nm;llvm-objcopy;llvm-strip;llvm-objdump;llvm-readobj;llvm-readelf;llvm-size;llvm-strings;llvm-symbolizer;llvm-addr2line;llvm-cxxfilt;llvm-dwarfdump;llvm-cov;llvm-profdata"
 
 ARCHS=${*:-aarch64 x86_64}
 for ARCH in $ARCHS; do
@@ -92,6 +95,7 @@ cmake -G Ninja -S "$SRC/llvm" -B "$B" \
     -DLLVM_ENABLE_ZSTD=OFF -DLLVM_ENABLE_ZLIB=OFF -DLLVM_ENABLE_LIBXML2=OFF \
     -DLLVM_ENABLE_LIBEDIT=OFF -DLLVM_ENABLE_LIBPFM=OFF -DLLVM_ENABLE_FFI=OFF \
     -DLLVM_ENABLE_LIBCXX=ON \
+    -DLLVM_BUILD_LLVM_DYLIB=ON -DLLVM_LINK_LLVM_DYLIB=ON -DCLANG_LINK_CLANG_DYLIB=ON \
     -DLLVM_DISTRIBUTION_COMPONENTS="$DISTRIBUTION" \
     -DCLANG_LINKS_TO_CREATE="clang++;clang-cpp" \
     -DLLVM_INCLUDE_TESTS=OFF -DLLVM_INCLUDE_BENCHMARKS=OFF -DLLVM_INCLUDE_DOCS=OFF \
@@ -102,9 +106,11 @@ cmake -G Ninja -S "$SRC/llvm" -B "$B" \
 # the stage-1 clang go, and what they serve is compiled again.
 find "$B" -name '*.pch' ! -newer "$PREFIX/bin/clang-$MAJOR" -delete
 DESTDIR="$DEST" ninja -C "$B" -j "$JOBS" install-distribution
-# Every LLVM library too, in the build tree only: rustc for this host links them (rust/'s
-# native build reads this tree through a llvm-config that runs here), as build.sh's `all`.
-ninja -C "$B" -j "$JOBS" llvm-libraries
+# The shared libraries go by their versioned names alone, as the system's do (D-0010's scheme):
+# the links upstream installs beside them (libLLVM.so, libLLVM-<major>.so, libclang-cpp.so)
+# serve a linker with no notion of versioned names. rustc for this host links libLLVM from the
+# build tree (rust/'s native build, through a llvm-config that runs here).
+find "$DEST/usr/lib" -maxdepth 1 -type l \( -name 'libLLVM*' -o -name 'libclang-cpp*' \) -delete
 
 # The target's runtimes, from build.sh's install, where the installed system has them.
 RES=$DEST/usr/lib/clang/$MAJOR

@@ -18,7 +18,8 @@
 # (T3b) on the machine that built it, without running it: the tree as the installed system has
 # it (D-0010), and every program an ELF for the triple's machine that EmiBSD's ld.so loads
 # (OS/ABI 12, /usr/libexec/ld.so, the system's libc and libc++ by name, no rpath, the
-# stack-guard segment). Running it is the proof in QEMU (DESIGN.md), not this.
+# stack-guard segment), linking the one shared libLLVM the tree carries (D-0012). Running it is
+# the proof in QEMU (DESIGN.md), not this.
 set -u
 root=${1:?root of the native tree}
 triple=${2:?target triple}
@@ -34,6 +35,7 @@ case $triple in
     *) echo "native-check: unknown triple $triple" >&2; exit 2 ;;
 esac
 major=$("$tools/clang" -dumpversion | cut -d. -f1)
+mm=$("$tools/clang" -dumpversion | cut -d. -f1-2)       # what LLVM's shared libraries are named after
 
 for f in usr/bin/clang usr/bin/clang-scan-deps usr/bin/ld.lld usr/bin/llvm-ar usr/bin/llvm-nm usr/bin/llvm-objdump usr/bin/llvm-readelf \
          usr/lib/libc++.a usr/lib/libc++abi.a usr/lib/libc++.so.13.0 usr/lib/libc++abi.so.10.0 \
@@ -58,6 +60,24 @@ grep -q '^\.TH "CLANG" "1"' "$root/usr/share/man/man1/clang.1" 2>/dev/null || ba
 for f in libunwind.a libunwind.so libc++.so libc++abi.so; do
     [ -e "$root/usr/lib/$f" ] && bad "usr/lib/$f: the runtimes go by the system's names, the unwinder inside libc++abi"
 done
+# LLVM's shared libraries (D-0012): one file each, named as its soname, with no other link.
+for l in libLLVM libclang-cpp; do
+    f=$root/usr/lib/$l.so.$mm
+    if [ -f "$f" ] && [ ! -L "$f" ]; then
+        h=$("$readelf" -h "$f" 2>/dev/null)
+        echo "$h" | grep -q "Machine: *$machine" || bad "usr/lib/$l.so.$mm: not $machine"
+        echo "$h" | grep -q "OS/ABI: *UNIX - OpenBSD" || bad "usr/lib/$l.so.$mm: ELF OS/ABI byte is not 12"
+        d=$("$readelf" -d "$f")
+        echo "$d" | grep -q "SONAME.*\[$l\.so\.$mm\]" || bad "usr/lib/$l.so.$mm: its soname is not its name"
+        echo "$d" | grep -q 'NEEDED.*\[libc++\.so\.13\.0\]' || bad "usr/lib/$l.so.$mm: libc++.so.13.0 is not NEEDED"
+        echo "$d" | grep -q 'RPATH\|RUNPATH' && bad "usr/lib/$l.so.$mm: carries an rpath"
+    else
+        bad "missing usr/lib/$l.so.$mm"
+    fi
+    for o in "$root"/usr/lib/$l.so "$root"/usr/lib/$l-*.so "$root"/usr/lib/$l.so.$major; do
+        [ -e "$o" ] || [ -L "$o" ] && bad "usr/lib/$(basename "$o"): the shared libraries go by their versioned names alone"
+    done
+done
 
 n=0
 for p in "$root"/usr/bin/*; do
@@ -73,7 +93,11 @@ for p in "$root"/usr/bin/*; do
     d=$("$readelf" -d "$p")
     echo "$d" | grep -q 'NEEDED.*\[libc\.so\.' || bad "$b: the system's libc is not NEEDED"
     echo "$d" | grep -q 'NEEDED.*\[libc++\.so\.13\.0\]' || bad "$b: libc++.so.13.0 is not NEEDED"
+    echo "$d" | grep -q "NEEDED.*\[libLLVM\.so\.$mm\]" || bad "$b: libLLVM.so.$mm is not NEEDED: it carries LLVM inside"
     echo "$d" | grep -q 'RPATH\|RUNPATH' && bad "$b: carries an rpath"
+done
+for b in clang-$major clang-scan-deps; do
+    "$readelf" -d "$root/usr/bin/$b" 2>/dev/null | grep -q "NEEDED.*\[libclang-cpp\.so\.$mm\]" || bad "usr/bin/$b: libclang-cpp.so.$mm is not NEEDED"
 done
 [ "$n" -gt 10 ] || bad "only $n programs in usr/bin"
 

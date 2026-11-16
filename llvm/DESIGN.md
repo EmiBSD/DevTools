@@ -112,12 +112,13 @@ The host's CMake, Ninja, Python 3 and a C++ compiler (Apple clang on the Mac); t
 for stage 2 (the userland repository's libc, crt and headers; until then the base sets the
 kernel boots, given by path). No stage0: LLVM bootstraps from the host compiler.
 
-## The native toolchain (T3b, D-0009, D-0010)
+## The native toolchain (T3b, D-0009, D-0010, D-0012)
 
 `build/native.sh` (`just native llvm [aarch64|x86_64]`), after `build.sh`: the same patched
 source, cross-compiled by stage 1's clang for the host `<arch>-emibsd-emibsd8.0` against the
 architecture's sysroot (`CMAKE_SYSTEM_NAME` EmiBSD, as stage 2), with stage 1's tablegens
-(`LLVM_NATIVE_TOOL_DIR`); the same distribution as the cross toolchain, installed with
+(`LLVM_NATIVE_TOOL_DIR`); the same distribution as the cross toolchain and LLVM's two shared
+libraries (below), installed with
 `DESTDIR` under prefix `/usr` into `target/llvm/native-<triple>/root`, then stage 2's runtimes
 copied where the installed system has them (`usr/lib`, `usr/lib/clang/<major>`,
 `usr/include/c++/v1` with `__config_site`) and `cc`, `c++`, `cpp`, `ld`, `ar` as links (`cpp`
@@ -136,12 +137,20 @@ LLVM's build precompiles headers, and clang refuses a precompiled header made by
 revision of itself; ninja does not see the compiler change, so `build/native.sh` removes the
 ones older than the stage-1 clang before it builds (a rebuild after a commit failed on them).
 The macOS-hosted tree carries the same pages in `share/man/man1` under the tools' own names
-(`clang.1`, `llvm-ar.1`, `ld.lld.1`), without the system's names, which are not its commands. Against the base system's lists the tree deliberately lacks: a shared `libLLVM` and LLVM's
-headers and `llvm-config` (the tools are static against LLVM, D-0010, and the development kit is
+(`clang.1`, `llvm-ar.1`, `ld.lld.1`), without the system's names, which are not its commands. Against the base system's lists the tree deliberately lacks: LLVM's
+headers and `llvm-config` (the development kit is
 not shipped), the profiled `_p` archives (D-0010), `lldb` (its source is not among the paths
 fetched, and upstream has no native-process support for the OpenBSD interface: a decision of its
 own). `clang-scan-deps` has no manual page upstream. The tools link
-dynamically against the system's libc and `libc++.so.13.0`, LLVM's libraries static inside each
-(D-0010); no rpath (`CMAKE_SKIP_RPATH`); zlib, zstd, libxml2, libedit, libpfm and libffi off,
+dynamically against the system's libc and `libc++.so.13.0`, and against one shared LLVM
+(D-0012, which takes back D-0010's static one: fifteen programs each carried LLVM, 397 of the
+tree's 436 MB): `LLVM_BUILD_LLVM_DYLIB`, `LLVM_LINK_LLVM_DYLIB` and `CLANG_LINK_CLANG_DYLIB`,
+upstream's own switches, give `usr/lib/libLLVM.so.23.1`, which every tool links, and
+`usr/lib/libclang-cpp.so.23.1`, which clang and `clang-scan-deps` link. The names and sonames
+are upstream's (major.minor since LLVM 18), which is the system's scheme, so no patch names
+them; the unversioned links upstream installs beside them (`libLLVM.so`, `libLLVM-23.so`,
+`libclang-cpp.so`) are removed, as the runtimes' are. rustc for the same host links the same
+`libLLVM.so.23.1` (`rust/DESIGN.md`), so the two native trees are released together. The
+macOS-hosted tree keeps LLVM static inside its tools. No rpath (`CMAKE_SKIP_RPATH`); zlib, zstd, libxml2, libedit, libpfm and libffi off,
 none being a shared library of the system's in the sysroot yet. `tests/native-check.sh` checks
 the tree and every program's ELF without running it; the proof is the run in QEMU.
