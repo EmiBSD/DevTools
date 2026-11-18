@@ -34,6 +34,10 @@ Date: YYYY-MM-DD · Status: proposed | accepted | superseded by D-MMMM
 | D-0008 | 2026-11-02 | accepted | amd64 now: both architectures built, checked and released, one artifact per host and architecture; the kernel's targets carry the vendor emibsd |
 | D-0009 | 2026-11-08 | accepted | The userland assembles the `comp` set; DevTools gives it a native toolchain, LLVM and Rust running on EmiBSD, as milestone T3b; the driver carries the system's link defaults |
 | D-0010 | 2026-11-08 | accepted | T3b's shape: the system's paths, dynamic against the base system's libc and libc++, Rust under `/usr` with its tools and the kernel's targets; libc++ and libc++abi with the system's sonames, the unwinder inside libc++abi |
+| D-0011 | 2026-11-15 | accepted | Rust for the system's targets carries the system's branch protection by default, as its C does |
+| D-0012 | 2026-11-15 | accepted | The native toolchain shares one LLVM: the tools and rustc link `libLLVM.so`, clang its `libclang-cpp.so`; the two native trees are released together |
+| D-0013 | 2026-11-15 | accepted | Wherever the imported toolchains support OpenBSD, they support EmiBSD beside it |
+| D-0014 | 2026-11-17 | accepted | The organisation's forks carry the prefix `ext-` |
 
 ---
 
@@ -537,3 +541,39 @@ the OpenBSD targets.
   crate's target table in the vendored sources `rust-src` carries.
 - A pin bump re-reads the new source for conditions naming OpenBSD, as it re-applies the
   series.
+
+---
+
+# D-0014: The organisation's forks carry the prefix `ext-`
+
+Date: 2026-11-17 · Status: accepted
+
+## Context
+The organisation holds two kinds of repository under one list: its own, and forks of other
+projects that stay read-only mirrors. Nothing in a fork's name told them apart. GitHub has no
+convention for it; the maintainer weighed `mirror-`, `fork-` and `ext-`.
+
+## Decision
+The maintainer, 2026-11-17: every fork in the organisation is renamed with the prefix `ext-`,
+for external, in lower case. The ones this repository names:
+
+| Before | Now |
+|---|---|
+| `EmiBSD/llvm-project` | `EmiBSD/ext-llvm-project` |
+| `EmiBSD/rust` | `EmiBSD/ext-rust` |
+| `EmiBSD/cargo` | `EmiBSD/ext-cargo` |
+| `EmiBSD/rust-lang-backtrace-rs` | `EmiBSD/ext-rust-lang-backtrace-rs` |
+| `EmiBSD/rust-lang-libc` | `EmiBSD/ext-rust-lang-libc` |
+| `EmiBSD/OpenBSD-src` (not an input here, D-0003) | `EmiBSD/ext-openbsd-src` |
+
+## Consequences
+- A rename and nothing else: the pins, the commits, the patch series and the versions stand,
+  and no toolchain is rebuilt for it. The forks stay mirrors (D-0002).
+- `repo` of both `UPSTREAM.toml` names the new URLs. The fetched trees follow their mirror's
+  name, as before: `upstream/ext-llvm-project`, `upstream/ext-rust`; `upstream/rust-vendor`
+  keeps its name, which `[vendor] dir` gives it. `tools/upstream.py fetch` re-points an
+  existing clone at its mirror's URL.
+- The entries above this one keep the names of their day. The `MANIFEST` of the artifacts
+  already released (`llvm 23.1.4+emibsd.7`, `rust 1.99.1+emibsd.6`) names the old URLs, which
+  GitHub redirects; the next release's names the new ones.
+- A new fork is created with the prefix.

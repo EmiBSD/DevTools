@@ -1,6 +1,6 @@
 # llvm
 
-Upstream LLVM at the pinned release tag, from the fork `EmiBSD/llvm-project`, built with
+Upstream LLVM at the pinned release tag, from the fork `EmiBSD/ext-llvm-project`, built with
 LLVM's own CMake: clang, lld, LLVM's tools, and the runtimes compiler-rt, libunwind, libc++abi
 and libc++ for `aarch64-emibsd-emibsd8.0` and `x86_64-emibsd-emibsd8.0`, the targets our patch
 series teaches it (decisions D-0004, D-0008). The one LLVM of EmiBSD: it compiles the C and C++

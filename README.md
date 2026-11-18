@@ -22,12 +22,12 @@
 The toolchains of [EmiBSD](https://www.emibsd.org), both imported, both from the forks alone,
 built once for every repository that needs them:
 
-- **`llvm/`**: upstream LLVM at the tag `llvmorg-23.1.4`, from the fork `EmiBSD/llvm-project`,
+- **`llvm/`**: upstream LLVM at the tag `llvmorg-23.1.4`, from the fork `EmiBSD/ext-llvm-project`,
   built with its own CMake: clang, lld, the tools, and compiler-rt, libunwind, libc++abi and
   libc++ for `aarch64-emibsd-emibsd8.0` and `x86_64-emibsd-emibsd8.0`, the targets our patch
   series teaches it (decisions D-0004, D-0008). Apache-2.0 with the LLVM exception. The one compiler
   of the system, and the backend of rustc.
-- **`rust/`**: rust-lang/rust at the tag `1.99.1`, from the fork `EmiBSD/rust`, built with `x.py`
+- **`rust/`**: rust-lang/rust at the tag `1.99.1`, from the fork `EmiBSD/ext-rust`, built with `x.py`
   against `llvm/`'s LLVM, from the vendored crates of its own `Cargo.lock`, with no network:
   rustc, cargo, rustdoc, clippy, rustfmt and `rust-src`; `std` for the host; `core` and `alloc`
   for the kernel's `aarch64-emibsd-none-softfloat` and `x86_64-emibsd-none-softfloat`; `std` for
@@ -36,10 +36,12 @@ built once for every repository that needs them:
   rustc, std and the libc crate the targets). Apache-2.0 and MIT.
 
 No toolchain here is ours, and nothing of it comes from OpenBSD (decision D-0003 of
-`docs/DECISIONS.md`). The sources come from the read-only mirrors `llvm-project`, `rust`,
-`cargo`, `backtrace-rs` and `libc`, pinned in each `UPSTREAM.toml` to what the stable release
-fixes; what is ours is the build glue, the patch series that adds the EmiBSD target (ISC, each
-patch with its reason: `llvm/patches/`, `rust/patches/`) and the artifacts.
+`docs/DECISIONS.md`). The sources come from the read-only mirrors `ext-llvm-project`,
+`ext-rust`, `ext-cargo`, `ext-rust-lang-backtrace-rs` and `ext-rust-lang-libc` (the `ext-`
+prefix marks a fork of someone else's repository, decision D-0014), pinned in each
+`UPSTREAM.toml` to what the stable release fixes; what is ours is the build glue, the patch
+series that adds the EmiBSD target (ISC, each patch with its reason: `llvm/patches/`,
+`rust/patches/`) and the artifacts.
 
 The build scripts, the documents and the commits of this repository are written by Claude
 Code agents under its written rules (`CLAUDE.md`, `.claude/rules/`); the maintainer, Emilio
@@ -52,8 +54,8 @@ Rust project.
 
 ```mermaid
 flowchart LR
-    llvm["llvm-project (mirror)"] -- "llvmorg-23.1.4" --> dev["DevTools"]
-    rust["rust, cargo (mirrors)"] -- "1.99.1" --> dev
+    llvm["ext-llvm-project (mirror)"] -- "llvmorg-23.1.4" --> dev["DevTools"]
+    rust["ext-rust, ext-cargo (mirrors)"] -- "1.99.1" --> dev
     dev -- "clang, lld, libc++; rustc" --> ul["the userland"]
     dev -- "clang, lld; rustc with core and alloc for its target" --> k["the kernel"]
     dev -- "the native toolchain for comp (T3b)" --> ul

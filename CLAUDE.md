@@ -30,9 +30,9 @@ answered in Spanish.
   (D-0004: ISC, each patch with its reason, re-applied at every pin bump), the build glue
   (`build/build.sh`, `justfile`, `tools/`), and the documents. No source file of a
   toolchain is edited in place, ever.
-- **Forks are mirrors.** `EmiBSD/llvm-project`, `EmiBSD/rust` and `EmiBSD/cargo` carry
+- **Forks are mirrors.** `EmiBSD/ext-llvm-project`, `EmiBSD/ext-rust` and `EmiBSD/ext-cargo` carry
   only the upstream tags and commits the pins name; no commit of ours lands on them.
-  `OpenBSD-src` is not an input of this repository in any form. `tools/mirror.py check` verifies a pin exists on
+  `ext-openbsd-src` is not an input of this repository in any form. `tools/mirror.py check` verifies a pin exists on
   the mirror and on the origin with the same hash; pushing a tag to a mirror is the user's,
   from the main session.
 - **One LLVM (D-0003, 2026-10-31).** Upstream LLVM at `llvmorg-23.1.4`, from the fork, as

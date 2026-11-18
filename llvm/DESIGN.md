@@ -4,7 +4,7 @@
 
 `build/build.sh` builds upstream LLVM with its own CMake and Ninja, under `target/llvm/`:
 
-0. **The source.** `upstream/llvm-project` at the pin, copied to `target/llvm/src` (APFS
+0. **The source.** `upstream/ext-llvm-project` at the pin, copied to `target/llvm/src` (APFS
    clones) and the series of `UPSTREAM.toml` applied with `patch -p1`: the EmiBSD target
    (below). The copy is remade when the pin or a patch changes; the upstream is never
    touched.

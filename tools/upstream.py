@@ -5,8 +5,9 @@ usage: upstream.py fetch [<toolchain dir>...]   fetch what the UPSTREAM.toml fil
        upstream.py check [<toolchain dir>...]   every fetched upstream matches its pin
 
 Git upstreams are cloned sparse, blob-less, into upstream/<mirror name>/ at the repository
-root, one clone per mirror shared by every program that names it (EmiBSD/OpenBSD-src holds
-most of them), checked out at the pinned commit (or the commit a pinned tag resolves to).
+root (upstream/ext-rust for EmiBSD/ext-rust), one clone per mirror shared by every
+toolchain that names it, checked out at the pinned commit (or the commit a pinned tag
+resolves to). A clone follows its mirror's URL: when `repo` changes, the next fetch re-points it.
 Tarball upstreams are downloaded into upstream/<name>/, their SHA-256 verified before
 extraction. Everything fetched is made read-only; upstream/<key>/.pin records the hash.
 Stdlib only.
@@ -73,6 +74,7 @@ def fetch_git(key, ups):
     else:
         # The tree is read-only after a fetch; a changed path list has to write it.
         readonly_off(dest)
+        git(dest, "remote", "set-url", "origin", repo)   # a renamed mirror: the clone follows UPSTREAM.toml
         if paths:
             git(dest, "sparse-checkout", "set", "--no-cone", *paths)
     readonly_off(dest)
@@ -85,6 +87,7 @@ def fetch_git(key, ups):
             if sub.exists():
                 sub.rmdir()   # the empty directory git leaves for an uninitialised submodule
             subprocess.run(["git", "clone", "--no-checkout", "--filter=blob:none", sm["repo"], str(sub)], check=True)
+        git(sub, "remote", "set-url", "origin", sm["repo"])
         git(sub, "fetch", "--filter=blob:none", "origin", sm["commit"])
         git(sub, "checkout", "--detach", sm["commit"])
         print(f"upstream: {key}: submodule {sm['path']} at {sm['commit'][:12]} from {sm['repo']}")

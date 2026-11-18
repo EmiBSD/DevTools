@@ -1,7 +1,7 @@
 # rust (imported; the pin moved here from the userland repository on 2026-10-31, decision D-0002)
 
 STATUS: see `STATUS`. Compiled from its upstream at the pin of `UPSTREAM.toml`, never
-rewritten (the user's decision of 2026-10-23). rust-lang/rust, mirrored at `EmiBSD/rust`.
+rewritten (the user's decision of 2026-10-23). rust-lang/rust, mirrored at `EmiBSD/ext-rust`.
 
 ## What it gives us
 

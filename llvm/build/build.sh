@@ -24,7 +24,7 @@
 set -eu
 cd "$(dirname "$0")/../.."
 ROOT=$PWD
-UP=upstream/llvm-project
+UP=upstream/ext-llvm-project
 SRC=target/llvm/src
 [ -f "$UP/.pin" ] || { echo "build: $UP not fetched (just fetch)" >&2; exit 1; }
 for t in cmake ninja python3; do command -v $t >/dev/null || { echo "build: $t not found (the user's install)" >&2; exit 1; }; done

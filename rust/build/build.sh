@@ -35,7 +35,7 @@
 set -eu
 cd "$(dirname "$0")/../.."
 ROOT=$PWD
-UP=upstream/rust
+UP=upstream/ext-rust
 SRC=target/rust/src
 OUT=target/rust
 [ -f "$UP/.pin" ] || { echo "build: $UP not fetched (just fetch)" >&2; exit 1; }

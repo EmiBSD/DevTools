@@ -4,7 +4,7 @@
 
 | | Version | From | Builds |
 |---|---|---|---|
-| `llvm/` | `llvmorg-23.1.4` | the fork `EmiBSD/llvm-project` at upstream's tag, as upstream ships it | clang, lld, the tools; compiler-rt, libunwind, libc++abi, libc++ for `aarch64-emibsd-emibsd8.0` and `x86_64-emibsd-emibsd8.0` (our patch series, D-0004, D-0008) |
+| `llvm/` | `llvmorg-23.1.4` | the fork `EmiBSD/ext-llvm-project` at upstream's tag, as upstream ships it | clang, lld, the tools; compiler-rt, libunwind, libc++abi, libc++ for `aarch64-emibsd-emibsd8.0` and `x86_64-emibsd-emibsd8.0` (our patch series, D-0004, D-0008) |
 
 It compiles the C and C++ of the system and it is the backend rustc builds against
 (rustc 1.99.1 needs LLVM 21 or newer). Nothing of OpenBSD enters DevTools: no LLVM code, no
@@ -16,9 +16,9 @@ patches, no build glue. rustc's own `src/llvm-project` submodule is not fetched.
 flowchart LR
     subgraph forks["Forks: read-only mirrors, no commits of ours"]
         direction TB
-        llvm["llvm-project<br/>(llvm/llvm-project)"]
-        rust["rust<br/>(rust-lang/rust)"]
-        cargo["cargo<br/>(rust-lang/cargo)"]
+        llvm["ext-llvm-project<br/>(llvm/llvm-project)"]
+        rust["ext-rust<br/>(rust-lang/rust)"]
+        cargo["ext-cargo<br/>(rust-lang/cargo)"]
     end
     dev["DevTools<br/>clang, lld, libc++, compiler-rt<br/>rustc, cargo, std"]
     ul["the userland repository"]

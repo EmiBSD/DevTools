@@ -6,7 +6,7 @@
 [upstream]
 name    = "LLVM"
 kind    = "git"
-repo    = "https://github.com/EmiBSD/llvm-project"       # the organisation's mirror, always
+repo    = "https://github.com/EmiBSD/ext-llvm-project"   # the organisation's mirror, always
 origin  = "https://github.com/llvm/llvm-project"         # what the mirror is fed from
 path    = ["cmake", "third-party", "runtimes", "llvm", "clang", "lld",
            "compiler-rt", "libunwind", "libcxxabi", "libcxx",

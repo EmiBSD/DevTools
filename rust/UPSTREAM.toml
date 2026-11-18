@@ -2,7 +2,7 @@
 [upstream]
 name    = "Rust"
 kind    = "git"
-repo    = "https://github.com/EmiBSD/rust"           # the organisation's mirror, always
+repo    = "https://github.com/EmiBSD/ext-rust"       # the organisation's mirror, always
 origin  = "https://github.com/rust-lang/rust"          # what the mirror is fed from
 path    = ["/*", "!/compiler/rustc_codegen_gcc/"]   # the whole tree but the GCC backend: its gccjit crates are GPL-3.0 (POLICIES.md: never in the tree);
                                           # excluded from the root workspace upstream, built only when rust.codegen-backends names gcc
@@ -24,19 +24,19 @@ series  = ["0001-bootstrap-vendor-what-is-there.patch", "0002-rustc-target-emibs
 
 [[submodules]]                            # fetched from the mirror at this commit, in place of the upstream's URL
 path    = "src/tools/cargo"
-repo    = "https://github.com/EmiBSD/cargo"
+repo    = "https://github.com/EmiBSD/ext-cargo"
 origin  = "https://github.com/rust-lang/cargo"
 commit  = "5f94df4789f005f9a352888e8355ffc645b7ed0e"   # what 1.99.1 pins (src/tools/cargo at the tag); rustup's cargo 1.99.1 prints it
 
 [[submodules]]                            # library/backtrace: std needs it (bootstrap requires the submodule)
 path    = "library/backtrace"
-repo    = "https://github.com/EmiBSD/rust-lang-backtrace-rs"
+repo    = "https://github.com/EmiBSD/ext-rust-lang-backtrace-rs"
 origin  = "https://github.com/rust-lang/backtrace-rs"
 commit  = "d902726a1dcdc1e1c66f73d1162181b5423c645b"   # what 1.99.1 pins, as 1.98.1 did; no tag of backtrace-rs points at it
 
 [[submodules]]                            # not a git submodule of rust: the libc crate std links, taken from its mirror
 path    = ".emibsd/libc"                  # in place of crates.io's copy (build.sh puts it, patched, in the vendored package's stead),
-repo    = "https://github.com/EmiBSD/rust-lang-libc" # so that EmiBSD's bindings are a patch series of ours over the pinned tag (D-0004)
+repo    = "https://github.com/EmiBSD/ext-rust-lang-libc" # so that EmiBSD's bindings are a patch series of ours over the pinned tag (D-0004)
 origin  = "https://github.com/rust-lang/libc"
 commit  = "ef0906e20828777175f65caa7e681a0ce33c559a"   # tag 0.2.189: the version library/Cargo.lock of 1.99.1 fixes for std
 
